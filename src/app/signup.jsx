@@ -1,0 +1,336 @@
+//****AVISO IMPORTANTE PARA TENER EN CUENTA */
+// No olvidar colocar esta linea 
+// para que no se use el 100% de la pantalla en Android, y no se rompa, por eso hay que importar
+//la libreria StatusBar de react-native y colocarla en la parte superior del return
+
+// ============================================================
+//   SIGNUP SCREEN — Pantalla de registro
+//   Equivalente de signup.html para React Native
+// ============================================================
+
+import Header from '@/components/ui/Header';
+import Input from '@/components/ui/Input';
+import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable, ScrollView, StyleSheet,
+  Text, View
+} from 'react-native';
+
+// Íconos
+import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
+import IconPerson from '../../assets/icons/icon-person.svg';
+import IconVisibility from '../../assets/icons/icon-visibility.svg';
+
+// ── Límites de longitud (estándares actuales de la industria) ──
+// Nombre: 2-100 caracteres es un rango común para formularios de registro
+// Email: RFC 5321 establece 254 caracteres como máximo para una dirección de correo
+// Password: NIST SP 800-63B recomienda permitir un mínimo de 8 y hasta al menos 64 caracteres
+const LIMITS = {
+  name:     { min: 2, max: 100 },
+  email:    { max: 254 },
+  password: { min: 8, max: 64 },
+};
+
+// ── Reglas de validación de contraseña ──
+const passwordRules = [
+  { id: 'length',  label: `Entre ${LIMITS.password.min} y ${LIMITS.password.max} caracteres`, test: v => v.length >= LIMITS.password.min && v.length <= LIMITS.password.max },
+  { id: 'upper',   label: 'Al menos una mayúscula',                test: v => /[A-Z]/.test(v) },
+  { id: 'lower',   label: 'Al menos una minúscula',                test: v => /[a-z]/.test(v) },
+  { id: 'number',  label: 'Al menos un número',                    test: v => /[0-9]/.test(v) },
+];
+
+export default function SignupScreen() {
+  const [name, setName]           = useState('');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [terms, setTerms]         = useState(false);
+  const [loading, setLoading]     = useState(false);
+
+  // ── Verifica si todas las reglas se cumplen ──
+  const allRulesPass = passwordRules.every(rule => rule.test(password));
+
+  // ── Validación de longitud para nombre y correo ──
+  const nameValid  = name.trim().length >= LIMITS.name.min && name.length <= LIMITS.name.max;
+  const emailValid = email.length > 0 && email.length <= LIMITS.email.max;
+
+  // ── Validación de coincidencia de contraseñas ──
+  const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
+
+  const canSubmit = allRulesPass && nameValid && emailValid && passwordsMatch && terms;
+
+  // ── Manejo del submit ──
+  const handleSignup = () => {
+    if (!canSubmit) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      router.replace('/feed');
+    }, 2000);
+  };
+
+  return (
+    <View style={styles.container}>
+
+      {/* Header con logo */}
+      <Header />
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Título y subtítulo */}
+        <Text style={styles.title}>Crear cuenta</Text>
+        <Text style={styles.subtitle}>
+          Regístrate en nuestra plataforma y da el primer paso en tú camino.
+        </Text>
+
+        {/* Input nombre */}
+        <Input
+          label="Ingresa tu nombre"
+          value={name}
+          onChangeText={setName}
+          maxLength={LIMITS.name.max}
+          icon={<IconPerson width={20} height={20} fill={colors.primaryDisabled} />}
+          iconActive={<IconPerson width={20} height={20} fill={colors.primary} />}
+        />
+
+        {/* Input correo */}
+        <Input
+          label="Correo electrónico"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+          maxLength={LIMITS.email.max}
+          icon={<IconAlternateEmail width={20} height={20} fill={colors.primaryDisabled} />}
+          iconActive={<IconAlternateEmail width={20} height={20} fill={colors.primary} />}
+        />
+
+        {/* Input contraseña con toggle */}
+        <Input
+          label="Contraseña"
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+          onFocusExternal={() => setShowRules(true)}
+          maxLength={LIMITS.password.max}
+          icon={
+            <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <IconVisibility
+                width={20}
+                height={20}
+                fill={showPassword ? colors.primary : colors.primaryDisabled}
+              />
+            </Pressable>
+          }
+        />
+
+        {/* Reglas de validación */}
+        {showRules && (
+          <View style={styles.rulesBox}>
+            {passwordRules.map(rule => {
+              const passed  = rule.test(password);
+              const touched = password.length > 0;
+              const color   = passed ? '#22c55e' : touched ? '#ef4444' : colors.typography;
+              return (
+                <View key={rule.id} style={styles.rule}>
+                  <Text style={[styles.ruleIcon, { color }]}>
+                    {passed ? '●' : '○'}
+                  </Text>
+                  <Text style={[styles.ruleText, { color }]}>
+                    {rule.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Input confirmar contraseña */}
+        <Input
+          label="Confirmar contraseña"
+          secureTextEntry={!showConfirmPassword}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          maxLength={LIMITS.password.max}
+          icon={
+            <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <IconVisibility
+                width={20}
+                height={20}
+                fill={showConfirmPassword ? colors.primary : colors.primaryDisabled}
+              />
+            </Pressable>
+          }
+        />
+
+        {/* Aviso de coincidencia de contraseñas */}
+        {confirmPassword.length > 0 && (
+          <Text style={[styles.matchText, { color: passwordsMatch ? '#22c55e' : '#ef4444' }]}>
+            {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+          </Text>
+        )}
+
+        {/* Términos y condiciones */}
+        <View style={styles.options}>
+          <Pressable
+            style={styles.remember}
+            onPress={() => setTerms(!terms)}
+          >
+            <View style={[styles.radio, terms && styles.radioActive]}>
+              {terms && <View style={styles.radioDot} />}
+            </View>
+            <Text style={styles.rememberText}>Aceptar términos y condiciones</Text>
+          </Pressable>
+        </View>
+
+        {/* Botón crear cuenta */}
+        <Pressable
+          style={[styles.btn, !canSubmit && styles.btnDisabled]}
+          onPress={handleSignup}
+          disabled={!canSubmit}
+        >
+          {loading
+            ? <ActivityIndicator color={colors.white} />
+            : <Text style={styles.btnText}>Crear cuenta</Text>
+          }
+        </Pressable>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>¿Ya tienes cuenta? </Text>
+          <Pressable onPress={() => router.push('/login')}>
+            <Text style={styles.footerLink}>Ingresar</Text>
+          </Pressable>
+        </View>
+
+      </ScrollView>
+
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.md,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+  },
+  title: {
+    fontSize: fontSizes.h1,
+    fontWeight: fontWeights.bold,
+    color: colors.titles,
+    marginBottom: spacing.sm,
+    fontFamily: 'Poppins_700Bold',
+  },
+  subtitle: {
+    fontSize: fontSizes.body1,
+    color: colors.typography,
+    marginBottom: spacing.lg,
+    fontFamily: 'Poppins_400Regular',
+    lineHeight: 22,
+  },
+  rulesBox: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.white,
+    gap: spacing.xs,
+  },
+  rule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  ruleIcon: {
+    fontSize: 10,
+  },
+  ruleText: {
+    fontSize: fontSizes.body3,
+    fontFamily: 'Poppins_400Regular',
+  },
+  matchText: {
+    fontSize: fontSizes.body3,
+    fontFamily: 'Poppins_400Regular',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+  },
+  options: {
+    marginBottom: spacing.lg,
+  },
+  remember: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  radio: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  radioDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.white,
+  },
+  rememberText: {
+    fontSize: fontSizes.body2,
+    color: colors.titles,
+    fontFamily: 'Poppins_400Regular',
+  },
+  btn: {
+    width: '100%',
+    height: 56,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnDisabled: {
+    backgroundColor: colors.primaryDisabled,
+  },
+  btnText: {
+    fontSize: fontSizes.h3,
+    fontWeight: fontWeights.bold,
+    color: colors.white,
+    fontFamily: 'Poppins_700Bold',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: spacing.xl,
+  },
+  footerText: {
+    fontSize: fontSizes.body3,
+    color: colors.typography,
+    fontFamily: 'Poppins_400Regular',
+  },
+  footerLink: {
+    fontSize: fontSizes.body3,
+    color: colors.primary,
+    fontWeight: fontWeights.bold,
+    fontFamily: 'Poppins_700Bold',
+  },
+});

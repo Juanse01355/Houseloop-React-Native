@@ -1,0 +1,128 @@
+// ============================================================
+//   INPUT — Componente reutilizable
+//   Equivalente de .input-group en components.css
+//   Campo de texto con label flotante e ícono 
+// ============================================================
+
+import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
+import { useRef, useState } from 'react';
+import { Animated, StyleSheet, TextInput, View } from 'react-native';
+
+export default function Input({ label, icon, iconActive, secureTextEntry, keyboardType, value, onChangeText, onFocusExternal }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const labelAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  // ── Animación del label flotante ──
+  const animateLabel = (toValue) => {
+    Animated.timing(labelAnim, {
+      toValue,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    animateLabel(1);
+    if (onFocusExternal) onFocusExternal();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (!value) animateLabel(0);
+  };
+
+  // ── Interpolaciones del label ──
+  const labelTop = labelAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [16, -10],
+  });
+
+  const labelSize = labelAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [fontSizes.body2, fontSizes.body3],
+  });
+
+  const labelColor = labelAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [colors.typography, colors.primary],
+  });
+
+  return (
+    <View style={[styles.inputGroup, isFocused && styles.inputGroupFocused]}>
+
+      {/* Label flotante */}
+      <Animated.Text
+        style={[
+          styles.label,
+          { top: labelTop, fontSize: labelSize, color: labelColor }
+        ]}
+      >
+        {label}
+      </Animated.Text>
+
+      {/* Input */}
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        placeholderTextColor="transparent"
+      />
+
+      {/* Ícono derecho */}
+        {icon && (
+          <View style={styles.iconWrapper}>
+            {isFocused && iconActive ? iconActive : icon}
+          </View>
+        )}
+
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  inputGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    height: 56,
+    position: 'relative',
+  
+  },
+  inputGroupFocused: {
+    borderColor: colors.primary,
+  },
+  label: {
+    position: 'absolute',
+    left: spacing.md,
+    backgroundColor: colors.white,
+    paddingHorizontal: 4,
+    zIndex: 1,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: fontSizes.body2,
+    fontcolor: colors.typography,
+    transition: 'all 0.2s ease-in-out',
+    //backgroundColor: '#664e4e',
+  },
+  input: {
+    flex: 1,
+    fontSize: fontSizes.body2,
+    color: colors.titles,
+    fontFamily: 'Poppins_400Regular',
+    paddingTop: 8,
+  },
+  iconWrapper: {
+    marginLeft: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
