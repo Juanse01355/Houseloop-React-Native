@@ -5,7 +5,7 @@
 // ============================================================
 
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, TextInput, View } from 'react-native';
 
 export default function Input({ label, icon, iconActive, secureTextEntry, keyboardType, value, onChangeText, onFocusExternal }) {
@@ -20,7 +20,16 @@ export default function Input({ label, icon, iconActive, secureTextEntry, keyboa
       useNativeDriver: false,
     }).start();
   };
-
+  // Vigila el valor del input: si cambia desde AFUERA del componente
+  // (ej: AsyncStorage llenando el correo automáticamente), sube el label
+  // igual que si el usuario lo hubiera tocado con el dedo
+  useEffect(() => {
+    if (value) {
+      animateLabel(1);
+    } else if (!isFocused) {
+      animateLabel(0);
+    }
+  }, [value]);
   const handleFocus = () => {
     setIsFocused(true);
     animateLabel(1);

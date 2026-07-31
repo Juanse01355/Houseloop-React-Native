@@ -3,35 +3,100 @@
 //   Equivalente de login.html para React Native
 // ============================================================
 
-import { ButtonPrimary } from '@/components/ui/Button';
-import Divider from '@/components/ui/Divider';
-import Header from '@/components/ui/Header';
-import Input from '@/components/ui/Input';
-import { colors, fontSizes, fontWeights, radii, shadows, spacing } from '@/constants/theme-houseloop';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { ButtonPrimary } from "@/components/ui/Button";
+import Header from "@/components/ui/Header";
+import Input from "@/components/ui/Input";
+import { BASE_URL } from "@/config/api"; // trae la URL de tu backend
+import Toast from 'react-native-toast-message';   // para mostrar las alertas flotantes
 import {
-  Pressable,StatusBar,  ScrollView, StyleSheet,
-  Text, View
-} from 'react-native';
+  colors,
+  fontSizes,
+  fontWeights,
+  radii,
+  shadows,
+  spacing,
+} from "@/constants/theme-houseloop";
+import AsyncStorage from "@react-native-async-storage/async-storage"; // para guardar el token en el celular
+import { router } from "expo-router";
+import { useEffect, useState } from 'react';   // useEffect: para cargar el correo guardado al abrir la pantalla
+import {
+  Pressable,
+  ScrollView,
+  StatusBar,
+ StyleSheet, 
+  Text,
+  View,
+} from "react-native";
 
 // Íconos
-import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
-import IconLock from '../../assets/icons/icon-lock.svg';
-
-// Logo Google SVG inline
-import IconGoogle from '../../assets/icons/icon-google.svg';
+import IconAlternateEmail from "../../assets/icons/icon-alternate-email.svg";
+import IconLock from "../../assets/icons/icon-lock.svg";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const [loading, setLoading] = useState(false); // controla si mostramos el spinner mientras espera al backend
 
-  const handleLogin = () => {
-    // Por ahora navega al feed directamente
-    router.replace('/feed');
-  };
+// Al abrir la pantalla de login, revisa si hay un correo guardado
+// de una sesión anterior donde el usuario activó "Recordarme"
+useEffect(() => {
+  const cargarCorreoGuardado = async () => {
+    const correoGuardado = await AsyncStorage.getItem('correoRecordado');
+    if (correoGuardado) {
+      setEmail(correoGuardado);
+      setRemember(true);   // también marcamos el checkbox como activado
+          }
+        };
+        cargarCorreoGuardado();
+      }, []);   // el array vacío [] significa "solo ejecuta esto una vez, al abrir la pantalla"
 
+  const handleLogin = async () => {
+    setLoading(true);
+
+    try {
+      // Petición POST real a tu endpoint /auth/login
+      const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          correo: email, // debe llamarse "correo", igual que espera req.body en el backend
+          contrasena: password, // debe llamarse "contrasena", igual que espera req.body en el backend
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // response.ok es false si el backend respondió 401 (credenciales incorrectas)
+        Toast.show({ type: 'error', text1: data.error || "No se pudo iniciar sesión" });
+        return;
+      }
+
+      // Login exitoso: el backend devolvió { token, usuario }.
+      // Los guardamos en el celular para no pedir el login de nuevo cada vez,
+      // y para usar el token después en peticiones que requieran estar logueado.
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('usuario', JSON.stringify(data.usuario));
+
+      // Si "Recordarme" está activado, guardamos el correo para la próxima vez.
+      // Si NO está activado, nos aseguramos de borrar cualquier correo guardado antes
+      // (por si el usuario lo había activado en una sesión anterior y ahora lo desactivó)
+      if (remember) {
+        await AsyncStorage.setItem('correoRecordado', email);
+      } else {
+        await AsyncStorage.removeItem('correoRecordado');
+      }
+      Toast.show({ type: 'success', text1: 'Sesión iniciada correctamente' });
+          router.replace('/feed');
+          } catch (error) {
+                // Este catch es por errores de RED, no de credenciales:
+                // backend apagado, IP mal escrita, celular sin wifi, etc.
+                Toast.show({ type: 'error', text1: "No se pudo conectar con el servidor. Verifica tu conexión." });
+              } finally {
+                setLoading(false); // pase lo que pase, apaga el spinner al final
+              }
+            };
   return (
     <View style={styles.container}>
       <StatusBar translucent={false} backgroundColor="#000" />
@@ -54,8 +119,16 @@ export default function LoginScreen() {
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
-          icon={<IconAlternateEmail width={24} height={24} fill={colors.primaryDisabled} />}
-          iconActive={<IconAlternateEmail width={20} height={20} fill={colors.primary} />}
+          icon={
+            <IconAlternateEmail
+              width={24}
+              height={24}
+              fill={colors.primaryDisabled}
+            />
+          }
+          iconActive={
+            <IconAlternateEmail width={20} height={20} fill={colors.primary} />
+          }
         />
 
         {/* Input contraseña */}
@@ -64,7 +137,9 @@ export default function LoginScreen() {
           secureTextEntry
           value={password}
           onChangeText={setPassword}
-          icon={<IconLock width={24} height={24} fill={colors.primaryDisabled} />}
+          icon={
+            <IconLock width={24} height={24} fill={colors.primaryDisabled} />
+          }
           iconActive={<IconLock width={20} height={20} fill={colors.primary} />}
         />
 
@@ -84,34 +159,22 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {/* Botón iniciar sesión */}
-        <ButtonPrimary text="Iniciar sesión" onPress={handleLogin} />
 
-        {/* Divider */}
-        <Divider text="O conectarse con" />
-
-        {/* Botón Google */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.googleBtn,
-            pressed && styles.googleBtnPressed,
-          ]}
-        >
-          <IconGoogle width={20} height={20} />
-          <Text style={styles.googleBtnText}>Continuar con Google</Text>
-        </Pressable>
+        {/* Botón iniciar sesión — mantiene su color siempre, ButtonPrimary decide mostrar spinner o texto */}
+        <ButtonPrimary
+          text="Iniciar sesión"
+          onPress={handleLogin}
+          loading={loading}
+        />
 
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>¿Aún no tienes cuenta? </Text>
-          <Pressable onPress={() => router.push('/signup')}>
-            <Text style={styles.footerLink} >Crear cuenta</Text>
-            
+          <Pressable onPress={() => router.push("/signup")}>
+            <Text style={styles.footerLink}>Crear cuenta</Text>
           </Pressable>
         </View>
-
       </ScrollView>
-
     </View>
   );
 }
@@ -131,26 +194,26 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: colors.titles,
     marginBottom: spacing.sm,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
   },
   subtitle: {
     fontSize: fontSizes.body1,
     color: colors.typography,
     marginBottom: spacing.lg,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
     lineHeight: 22,
   },
   options: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.lg,
   },
   remember: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.xs,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   radio: {
     width: 16,
@@ -159,8 +222,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   radioActive: {
     borderColor: colors.primary,
@@ -175,49 +238,27 @@ const styles = StyleSheet.create({
   rememberText: {
     fontSize: fontSizes.body2,
     color: colors.titles,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   forgot: {
     fontSize: fontSizes.body2,
     color: colors.primary,
-    fontFamily: 'Poppins_400Regular',
-  },
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    width: '100%',
-    height: 56,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    ...shadows.sm,
-  },
-  googleBtnPressed: {
-    backgroundColor: '#F5F5F5',
-  },
-  googleBtnText: {
-    fontSize:14,
-    color: colors.titles,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_400Regular",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop:120,
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 40,
   },
   footerText: {
     fontSize: fontSizes.body3,
     color: colors.typography,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: "Poppins_400Regular",
   },
   footerLink: {
     fontSize: fontSizes.body3,
     color: colors.primary,
     fontWeight: 500,
-    fontFamily: 'Poppins_700Bold',
+    fontFamily: "Poppins_700Bold",
   },
-  
 });

@@ -11,6 +11,8 @@
 import Header from '@/components/ui/Header';
 import Input from '@/components/ui/Input';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
+import { BASE_URL } from '@/config/api';
+import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -53,6 +55,7 @@ export default function SignupScreen() {
   const [terms, setTerms]         = useState(false);
   const [loading, setLoading]     = useState(false);
 
+
   // ── Verifica si todas las reglas se cumplen ──
   const allRulesPass = passwordRules.every(rule => rule.test(password));
 
@@ -66,14 +69,38 @@ export default function SignupScreen() {
   const canSubmit = allRulesPass && nameValid && emailValid && passwordsMatch && terms;
 
   // ── Manejo del submit ──
-  const handleSignup = () => {
-    if (!canSubmit) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      router.replace('/feed');
-    }, 2000);
-  };
+ const handleSignup = async () => {
+  if (!canSubmit) return;
+  setLoading(true);
+
+  try {
+    // Petición POST real a tu endpoint /auth/registro (Se usa await para esperar que el servidor responda)
+    const response = await fetch(`${BASE_URL}/auth/registro`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: name,         // debe llamarse "nombre", igual que espera req.body en el backend
+        correo: email,        // debe llamarse "correo"
+        contrasena: password, // debe llamarse "contrasena"
+      }),
+    });
+
+    const data = await response.json();
+
+  if (!response.ok) {
+    Toast.show({ type: 'error', text1: data.error || 'No se pudo crear la cuenta' });
+    return;
+  }
+
+  // Registro exitoso — mostramos el toast y mandamos al login
+  Toast.show({ type: 'success', text1: 'Cuenta creada correctamente' });
+  router.replace('/login');
+  } catch (error) {
+    Toast.show({ type: 'error', text1: 'No se pudo conectar con el servidor. Verifica tu conexión.' });
+  } finally {
+    setLoading(false); // pase lo que pase, apaga el spinner
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -300,6 +327,7 @@ const styles = StyleSheet.create({
     color: colors.titles,
     fontFamily: 'Poppins_400Regular',
   },
+
   btn: {
     width: '100%',
     height: 56,

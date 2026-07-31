@@ -5,24 +5,29 @@ import {
   radii,
   spacing,
 } from '@/constants/theme-houseloop';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 // ============================================================
 //   BUTTON — Componente reutilizable
 // ============================================================
 
-export function ButtonPrimary({ text, onPress, disabled }) {
+export function ButtonPrimary({ text, onPress, disabled, loading }) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={disabled || loading}   // bloquea el botón también mientras carga, para evitar doble-tap
       style={({ pressed }) => [
         styles.btn,
-        pressed && !disabled && styles.btnPressed,
+        pressed && !disabled && !loading && styles.btnPressed,
         disabled && styles.btnDisabled,
+        // 👆 nota: NO agregamos ningún estilo distinto cuando loading es true,
+        //          así el botón mantiene su color normal (colors.primary)
       ]}
     >
-      <Text style={styles.btnText}>{text}</Text>
+      {loading
+        ? <ActivityIndicator color={colors.white} />   // spinner blanco, mismo color que el texto normal
+        : <Text style={styles.btnText}>{text}</Text>
+      }
     </Pressable>
   );
 }
