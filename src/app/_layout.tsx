@@ -32,6 +32,9 @@ export default function RootLayout() {
         <Stack.Screen name="signup" />
         <Stack.Screen name="feed" />
         <Stack.Screen name="publish" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="explore" />
+        <Stack.Screen name="search" />
       </Stack>
       <Toast config={toastConfig}
              visibilityTime={4000}

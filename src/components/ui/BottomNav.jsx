@@ -1,5 +1,4 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -25,29 +24,28 @@ import IconSearch from '../../../assets/icons/icon-search.svg';
 
 export default function BottomNav() {
   const insets = useSafeAreaInsets();
-  const [activeNav, setActiveNav] = useState('inicio');
+  const pathname = usePathname(); // ruta actual real, ej: "/feed"
+
+  const isActive = (route) => pathname === route || pathname.startsWith(route + '/');
 
   return (
     <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
       <Pressable
         style={({ pressed }) => [
           styles.navItem,
-          { width: 40, },
+          { width: 40 },
           pressed && styles.navItemPressed,
         ]}
-        onPress={() => setActiveNav('inicio')}
+        onPress={() => router.push('/feed')}
       >
-        {activeNav === 'inicio'
+        {isActive('/feed')
           ? <IconHomeFilled width={24} height={24} fill={colors.primary} />
-          : <IconHomeOutlined width={24} height={24} fill={colors.primary} opacity={0.55}  />}
-
+          : <IconHomeOutlined width={24} height={24} fill={colors.primary} opacity={0.55} />}
         <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'inicio'
-                ? styles.navLabelActive
-                : styles.navLabelInactive,
-            ]}
+          style={[
+            styles.navLabel,
+            isActive('/feed') ? styles.navLabelActive : styles.navLabelInactive,
+          ]}
         >
           Inicio
         </Text>
@@ -56,23 +54,20 @@ export default function BottomNav() {
       <Pressable
         style={({ pressed }) => [
           styles.navItem,
-          { width: 60,},
+          { width: 60 },
           pressed && styles.navItemPressed,
         ]}
-        onPress={() => setActiveNav('explorar')}
+        onPress={() => router.push('/explore')}
       >
-        {activeNav === 'explorar'
+        {isActive('/explore')
           ? <IconLocationFilled width={24} height={24} fill={colors.primary} />
           : <IconLocationOutlined width={24} height={24} fill={colors.primary} opacity={0.55} />}
-
         <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'explorar'
-                ? styles.navLabelActive
-                : styles.navLabelInactive,
-            ]}
-          >
+          style={[
+            styles.navLabel,
+            isActive('/explore') ? styles.navLabelActive : styles.navLabelInactive,
+          ]}
+        >
           Explorar
         </Text>
       </Pressable>
@@ -90,26 +85,23 @@ export default function BottomNav() {
       <Pressable
         style={({ pressed }) => [
           styles.navItem,
-          { width: 50,},
+          { width: 50 },
           pressed && styles.navItemPressed,
         ]}
-        onPress={() => setActiveNav('buscar')}
+        onPress={() => router.push('/search')}
       >
         <IconSearch
           width={24}
           height={24}
-          fill={activeNav === 'buscar' ? colors.primary : colors.primary}
-          opacity={activeNav === 'buscar' ? 1 : 0.55}
+          fill={colors.primary}
+          opacity={isActive('/search') ? 1 : 0.55}
         />
-      
         <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'buscar'
-                ? styles.navLabelActive
-                : styles.navLabelInactive,
-            ]}
-          >
+          style={[
+            styles.navLabel,
+            isActive('/search') ? styles.navLabelActive : styles.navLabelInactive,
+          ]}
+        >
           Buscar
         </Text>
       </Pressable>
@@ -120,20 +112,17 @@ export default function BottomNav() {
           { width: 40 },
           pressed && styles.navItemPressed,
         ]}
-        onPress={() => setActiveNav('perfil')}
+        onPress={() => router.push('/profile')}
       >
-        {activeNav === 'perfil'
+        {isActive('/profile')
           ? <IconProfileFilled width={24} height={24} fill={colors.primary} />
           : <IconProfileOutlined width={24} height={24} fill={colors.primary} opacity={0.55} />}
-
-          <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'perfil'
-                ? styles.navLabelActive
-                : styles.navLabelInactive,
-            ]}
-          >
+        <Text
+          style={[
+            styles.navLabel,
+            isActive('/profile') ? styles.navLabelActive : styles.navLabelInactive,
+          ]}
+        >
           Perfil
         </Text>
       </Pressable>
@@ -173,8 +162,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
   },
   navLabelInactive: {
-  color: colors.primary,
-  opacity: 0.55,
+    color: colors.primary,
+    opacity: 0.55,
   },
   navLabelActive: {
     color: colors.primary,

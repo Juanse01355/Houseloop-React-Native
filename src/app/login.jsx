@@ -87,8 +87,20 @@ useEffect(() => {
       } else {
         await AsyncStorage.removeItem('correoRecordado');
       }
-      Toast.show({ type: 'success', text1: 'Sesión iniciada correctamente' });
-          router.replace('/feed');
+
+      // ── ¿Es la primera vez que este dispositivo inicia sesión? ──
+      const yaHaIniciadoSesion = await AsyncStorage.getItem('yaHaIniciadoSesion');
+
+      if (!yaHaIniciadoSesion) {
+        // Primer ingreso: guardamos la bandera y avisamos a /feed para que
+        // sea esa pantalla la que muestre el confeti y el toast de bienvenida
+        await AsyncStorage.setItem('yaHaIniciadoSesion', 'true');
+        router.replace({ pathname: '/feed', params: { bienvenida: 'true' } });
+      } else {
+        // Ingresos posteriores: toast normal, sin confeti
+        Toast.show({ type: 'success', text1: 'Sesión iniciada correctamente' });
+        router.replace('/feed');
+      }
           } catch (error) {
                 // Este catch es por errores de RED, no de credenciales:
                 // backend apagado, IP mal escrita, celular sin wifi, etc.
@@ -166,6 +178,22 @@ useEffect(() => {
           onPress={handleLogin}
           loading={loading}
         />
+
+        {/* ══════════════════════════════════════════════════════════ */}
+        {/* 🧪 BOTÓN TEMPORAL DE PRUEBA — BORRAR ANTES DE PUBLICAR 🧪  */}
+        {/* Resetea la bandera de "primer ingreso" para poder probar  */}
+        {/* el confeti y el toast de bienvenida las veces que quieras */}
+        {/* ══════════════════════════════════════════════════════════ */}
+        <Pressable
+          onPress={async () => {
+            await AsyncStorage.removeItem('yaHaIniciadoSesion');
+            Toast.show({ type: 'info', text1: 'Bandera de primer ingreso reseteada 🧪' });
+          }}
+          style={styles.debugBtn}
+        >
+          <Text style={styles.debugBtnText}>🧪 Resetear "primer ingreso" (debug)</Text>
+        </Pressable>
+        {/* ══════════════════════ FIN BOTÓN TEMPORAL ═══════════════════ */}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -260,5 +288,22 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: 500,
     fontFamily: "Poppins_700Bold",
+  },
+
+  // 🧪 ESTILOS TEMPORALES DE DEBUG — BORRAR JUNTO CON EL BOTÓN DE ARRIBA 🧪
+  debugBtn: {
+    marginTop: spacing.lg,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+  },
+  debugBtnText: {
+    fontSize: fontSizes.body3,
+    color: '#b45309',
+    fontFamily: "Poppins_400Regular",
   },
 });
