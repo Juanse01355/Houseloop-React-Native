@@ -25,17 +25,28 @@ import {
   Pressable,
   TextInput,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
 import Input from '@/components/ui/Input';
+import { BASE_URL } from "@/config/api"; // trae la URL de tu backend
 import { ButtonPrimary, ButtonSecondary } from '@/components/ui/Button';
 
 const MAX_DESC = 720;
+
+// ── Convierte una URI local (file:// o blob:) en un Blob real ──
+// Es necesario porque FormData necesita el contenido del archivo,
+// no solo su ruta local en el dispositivo/navegador.
+const uriToBlob = async (uri) => {
+  const respuesta = await fetch(uri);
+  return await respuesta.blob();
+};
 
 export default function PublishScreen() {
   const router = useRouter();
@@ -55,6 +66,8 @@ export default function PublishScreen() {
   const [direccion, setDireccion] = useState('');
   const [barrio, setBarrio] = useState('');
 
+  const [enviando, setEnviando] = useState(false);
+
   // ── Contadores habitaciones / baños ──
   const changeCounter = (setter) => (delta) => {
     setter((prev) => Math.max(0, prev + delta));
@@ -65,7 +78,7 @@ export default function PublishScreen() {
   // ── Selección de video ──
   const pickVideo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes:['videos'],
       quality: 1,
     });
     if (!result.canceled) setVideoUri(result.assets[0].uri);
@@ -74,7 +87,7 @@ export default function PublishScreen() {
   // ── Selección de fotos (múltiples) ──
   const pickPhotos = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes:['images'],
       allowsMultipleSelection: true,
       quality: 1,
     });
@@ -83,23 +96,116 @@ export default function PublishScreen() {
     }
   };
 
-  const handlePublicar = () => {
-    const payload = {
-      videoUri,
-      photos,
-      tipoOferta,
-      tipoInmueble,
-      precio,
-      area,
-      habitaciones,
-      banos,
-      descripcion,
-      ciudad,
-      direccion,
-      barrio,
-    };
-    console.log('Publicar inmueble:', payload);
-    // TODO: conectar con el backend / API real
+  // ── Sube video + fotos al backend y devuelve sus URLs reales ──
+  const subirArchivos = async () => {
+    // Si no hay nada que subir, no llamamos al backend para nada.
+    if (!videoUri && photos.length === 0) {
+      return { video: null, fotos: [] };
+    }
+
+    const formData = new FormData();
+
+    if (videoUri) {
+      const blobVideo = await uriToBlob(videoUri);
+      formData.append('video', blobVideo, 'video.mp4');
+    }
+
+    for (let i = 0; i < photos.length; i++) {
+      const blobFoto = await uriToBlob(photos[i]);
+      formData.append('fotos', blobFoto, `foto_${i}.jpg`);
+    }
+
+    const response = await fetch(`${BASE_URL}/upload`, {
+      method: 'POST',
+      body: formData,
+      // OJO: no pongas 'Content-Type' a mano aquí. El navegador/RN
+      // necesita generar el "boundary" del multipart automáticamente;
+      // si lo fijas tú mismo, la subida se rompe.
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudieron subir las fotos/video');
+    }
+
+    return await response.json(); // { video, fotos }
+  };
+
+  // ── Envío de datos al backend ──
+  const handlePublicar = async () => {
+    console.log('🟡 Publicar presionado');
+
+    if (!precio || !direccion || !barrio) {
+      console.log('🔴 Validación falló:', { precio, direccion, barrio });
+      Alert.alert('Campos incompletos', 'Por favor llena el precio, dirección y barrio.');
+      return;
+    }
+
+    setEnviando(true);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const usuarioRaw = await AsyncStorage.getItem('usuario');
+
+      if (!token || !usuarioRaw) {
+        Alert.alert('Sesión no encontrada', 'Debes iniciar sesión para publicar un inmueble.');
+        setEnviando(false);
+        return;
+      }
+
+      const usuario = JSON.parse(usuarioRaw);
+
+      console.log('👤 Usuario desde AsyncStorage:', usuario);
+
+      // 1. Subir archivos primero, para obtener sus URLs reales
+      console.log('🟣 Subiendo archivos...');
+      const archivosSubidos = await subirArchivos();
+      console.log('🟣 Archivos subidos:', archivosSubidos);
+
+      // 2. Armar el payload con las URLs reales (no las URIs locales)
+      const payload = {
+        ciudad: ciudad || 'pasto',
+        direccion,
+        barrio,
+        titulo: `${tipoInmueble.toUpperCase()} en ${tipoOferta}`,
+        descripcion,
+        precio: Number(precio),
+        area_m2: Number(area),
+        habitaciones: Number(habitaciones),
+        banos: Number(banos),
+        tipo_operacion: tipoOferta,
+        tipo_inmueble: tipoInmueble,
+        estado: 'disponible',
+        id_usuario: usuario.id,
+        video: archivosSubidos.video,
+        fotos: archivosSubidos.fotos,
+      };
+
+      console.log('🟢 Enviando a:', `${BASE_URL}/propiedades`);
+
+      const response = await fetch(`${BASE_URL}/propiedades`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('¡Éxito!', 'Tu inmueble ha sido publicado exitosamente.');
+        router.replace('/feed');
+      } else {
+        console.log('🔴 Error del backend:', data);
+        Alert.alert('Error', data.error || data.detalle || 'No se pudo guardar la propiedad.');
+      }
+    } catch (error) {
+      console.error('🔴 Error de red:', error);
+      Alert.alert('Error de red', 'No se pudo conectar con el servidor backend.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -288,7 +394,11 @@ export default function PublishScreen() {
 
         {/* ── BOTONES ── */}
         <View style={styles.actions}>
-          <ButtonPrimary text="Publicar" onPress={handlePublicar} />
+          <ButtonPrimary
+            text={enviando ? 'Publicando...' : 'Publicar'}
+            onPress={handlePublicar}
+            disabled={enviando}
+          />
           <ButtonSecondary text="Volver atrás" onPress={() => router.back()} />
         </View>
 

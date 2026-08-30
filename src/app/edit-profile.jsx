@@ -84,7 +84,7 @@ export default function EditProfileScreen() {
     }
 
     const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -99,6 +99,36 @@ export default function EditProfileScreen() {
   const emailValid = email.length > 0 && email.length <= LIMITS.email.max;
   const canSubmit  = nameValid && emailValid;
 
+  // ── Sube la foto de perfil al backend, si el usuario eligió una nueva ──
+const subirFotoPerfil = async (token) => {
+  if (!fotoCambio || !foto) return null;
+
+  const respuestaBlob = await fetch(foto);
+  const blob = await respuestaBlob.blob();
+
+  const formData = new FormData();
+  formData.append('foto_perfil', blob, 'foto_perfil.jpg');
+
+  const response = await fetch('http://localhost:3300/api/perfil/foto_perfil', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.mensaje || 'No se pudo subir la foto de perfil');
+  }
+
+  return data.foto_perfil_url;
+};
+
+// ── Guardar cambios ──
+// (tu función handleGuardar sigue aquí abajo, sin borrarla)
+
  // ── Guardar cambios ──
 // Manda nombre y correo al backend (PUT /api/perfil) para actualizar
 // la base de datos, y si sale bien, refleja el cambio también en
@@ -106,8 +136,6 @@ export default function EditProfileScreen() {
 const handleGuardar = async () => {
   if (!canSubmit) return;
 
-  // Si no cambió nada respecto a los datos originales, no llamamos
-  // al backend — no tiene sentido hacer un PUT sin cambios
   if (!hayCambios) {
     Toast.show({ type: 'info', text1: 'No hay cambios para guardar' });
     return;
@@ -116,11 +144,13 @@ const handleGuardar = async () => {
   setLoading(true);
 
   try {
-    // Sacamos el token guardado en el login, lo necesitamos para
-    // que el middleware del backend sepa quién es el usuario
     const token = await AsyncStorage.getItem('token');
 
-    // Mandamos la petición PUT con los datos nuevos en el body
+    let fotoUrlFinal = originalUsuario.foto;
+    if (fotoCambio) {
+      fotoUrlFinal = await subirFotoPerfil(token);
+    }
+
     const response = await fetch('http://localhost:3300/api/perfil', {
       method: 'PUT',
       headers: {
@@ -132,17 +162,11 @@ const handleGuardar = async () => {
 
     const data = await response.json();
 
-    // Si el backend respondió con error (ej: correo duplicado,
-    // 400, 500, etc.), avisamos y NO tocamos nada localmente
     if (!response.ok) {
       Toast.show({ type: 'error', text1: data.mensaje || 'No se pudo guardar los cambios' });
       return;
     }
 
-    // Si todo salió bien, actualizamos también lo que está guardado
-    // en AsyncStorage bajo la key 'usuario', para que otras pantallas
-    // que todavía lean de ahí (en vez de pedirle al backend) vean
-    // el dato nuevo sin necesidad de volver a loguearse
     const datosGuardados = await AsyncStorage.getItem('usuario');
     const usuarioActual = datosGuardados ? JSON.parse(datosGuardados) : {};
 
@@ -150,21 +174,16 @@ const handleGuardar = async () => {
       ...usuarioActual,
       nombre: name,
       correo: email,
-      foto: foto,
+      foto: fotoUrlFinal,
     };
 
     await AsyncStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
 
-    // Actualizamos el "original" para que hayCambios vuelva a false
-    // (si el usuario vuelve a esta pantalla sin cambiar nada más)
-    setOriginalUsuario({ nombre: name, correo: email, foto });
+    setOriginalUsuario({ nombre: name, correo: email, foto: fotoUrlFinal });
+    setFoto(fotoUrlFinal);
 
-    // Mostramos el modal de éxito
     setModalExitoVisible(true);
   } catch (error) {
-    // Este catch agarra errores de red (ej: el backend no responde,
-    // no hay conexión, etc.) — distinto al caso de arriba donde el
-    // backend SÍ respondió, pero con un error
     console.error('Error al guardar perfil:', error);
     Toast.show({ type: 'error', text1: 'No se pudo guardar los cambios' });
   } finally {
@@ -265,7 +284,10 @@ const handleGuardar = async () => {
             <View style={styles.modalButtonsRow}>
               <Pressable
                 style={[styles.modalBtn, styles.modalBtnOutline]}
-                onPress={() => setModalSalirVisible(false)}
+                onPress={() => {
+                  setModalSalirVisible(false);
+                  router.replace('/profile');
+                }}
               >
                 <Text style={styles.modalBtnOutlineText}>No</Text>
               </Pressable>

@@ -88,7 +88,7 @@ export default function FeedScreen() {
         const data = await response.json();
 
         if (response.ok) {
-          setUsuario({ nombre: data.nombre, foto: null }); // foto null por ahora
+          setUsuario({ nombre: data.nombre, foto: data.foto_perfil_url }); // foto null por ahora
         }
       } catch (error) {
         console.error("Error al cargar el usuario:", error);

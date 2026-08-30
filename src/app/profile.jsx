@@ -77,7 +77,7 @@ export default function ProfileScreen() {
           setUsuario({
             nombre: data.nombre,
             correo: data.correo,
-            foto: null, // por ahora, ya que foto_perfil_url no está en este endpoint
+            foto: data.foto_perfil_url,
             propiedades: [],
           });
         } catch (error) {
