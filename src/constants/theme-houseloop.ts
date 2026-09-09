@@ -18,6 +18,16 @@ export const colors = {
   divider:           '#F0F0F0',
 };
 
+// ── Tema oscuro ──
+export const darkColors = {
+  titles:      '#FFFFFF',
+  typography:  '#A2A1A4',
+  white:       '#FFFFFF',
+  background:  '#070707',
+  border:      '#E0E0E0',
+  divider:     '#F0F0F0',
+};
+
 export const fontSizes = {
   h1:       28,
   h2:       19,

@@ -5,6 +5,7 @@
 import IconCheck from '../../assets/icons/icon-check.svg';
 import Avatar from '@/components/ui/Avatar';
 import Input from '@/components/ui/Input';
+import AppModal from '@/components/ui/AppModal';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,7 +14,6 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -100,96 +100,93 @@ export default function EditProfileScreen() {
   const canSubmit  = nameValid && emailValid;
 
   // ── Sube la foto de perfil al backend, si el usuario eligió una nueva ──
-const subirFotoPerfil = async (token) => {
-  if (!fotoCambio || !foto) return null;
+  const subirFotoPerfil = async (token) => {
+    if (!fotoCambio || !foto) return null;
 
-  const respuestaBlob = await fetch(foto);
-  const blob = await respuestaBlob.blob();
+    const respuestaBlob = await fetch(foto);
+    const blob = await respuestaBlob.blob();
 
-  const formData = new FormData();
-  formData.append('foto_perfil', blob, 'foto_perfil.jpg');
+    const formData = new FormData();
+    formData.append('foto_perfil', blob, 'foto_perfil.jpg');
 
-  const response = await fetch('http://localhost:3300/api/perfil/foto_perfil', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: formData,
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.mensaje || 'No se pudo subir la foto de perfil');
-  }
-
-  return data.foto_perfil_url;
-};
-
-// ── Guardar cambios ──
-// (tu función handleGuardar sigue aquí abajo, sin borrarla)
-
- // ── Guardar cambios ──
-// Manda nombre y correo al backend (PUT /api/perfil) para actualizar
-// la base de datos, y si sale bien, refleja el cambio también en
-// AsyncStorage para que el resto de la app vea el dato actualizado.
-const handleGuardar = async () => {
-  if (!canSubmit) return;
-
-  if (!hayCambios) {
-    Toast.show({ type: 'info', text1: 'No hay cambios para guardar' });
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const token = await AsyncStorage.getItem('token');
-
-    let fotoUrlFinal = originalUsuario.foto;
-    if (fotoCambio) {
-      fotoUrlFinal = await subirFotoPerfil(token);
-    }
-
-    const response = await fetch('http://localhost:3300/api/perfil', {
-      method: 'PUT',
+    const response = await fetch('http://localhost:3300/api/perfil/foto_perfil', {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ nombre: name, correo: email }),
+      body: formData,
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      Toast.show({ type: 'error', text1: data.mensaje || 'No se pudo guardar los cambios' });
+      throw new Error(data.mensaje || 'No se pudo subir la foto de perfil');
+    }
+
+    return data.foto_perfil_url;
+  };
+
+  // ── Guardar cambios ──
+  // Manda nombre y correo al backend (PUT /api/perfil) para actualizar
+  // la base de datos, y si sale bien, refleja el cambio también en
+  // AsyncStorage para que el resto de la app vea el dato actualizado.
+  const handleGuardar = async () => {
+    if (!canSubmit) return;
+
+    if (!hayCambios) {
+      Toast.show({ type: 'info', text1: 'No hay cambios para guardar' });
       return;
     }
 
-    const datosGuardados = await AsyncStorage.getItem('usuario');
-    const usuarioActual = datosGuardados ? JSON.parse(datosGuardados) : {};
+    setLoading(true);
 
-    const usuarioActualizado = {
-      ...usuarioActual,
-      nombre: name,
-      correo: email,
-      foto: fotoUrlFinal,
-    };
+    try {
+      const token = await AsyncStorage.getItem('token');
 
-    await AsyncStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+      let fotoUrlFinal = originalUsuario.foto;
+      if (fotoCambio) {
+        fotoUrlFinal = await subirFotoPerfil(token);
+      }
 
-    setOriginalUsuario({ nombre: name, correo: email, foto: fotoUrlFinal });
-    setFoto(fotoUrlFinal);
+      const response = await fetch('http://localhost:3300/api/perfil', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ nombre: name, correo: email }),
+      });
 
-    setModalExitoVisible(true);
-  } catch (error) {
-    console.error('Error al guardar perfil:', error);
-    Toast.show({ type: 'error', text1: 'No se pudo guardar los cambios' });
-  } finally {
-    setLoading(false);
-  }
-};
+      const data = await response.json();
+
+      if (!response.ok) {
+        Toast.show({ type: 'error', text1: data.mensaje || 'No se pudo guardar los cambios' });
+        return;
+      }
+
+      const datosGuardados = await AsyncStorage.getItem('usuario');
+      const usuarioActual = datosGuardados ? JSON.parse(datosGuardados) : {};
+
+      const usuarioActualizado = {
+        ...usuarioActual,
+        nombre: name,
+        correo: email,
+        foto: fotoUrlFinal,
+      };
+
+      await AsyncStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+
+      setOriginalUsuario({ nombre: name, correo: email, foto: fotoUrlFinal });
+      setFoto(fotoUrlFinal);
+
+      setModalExitoVisible(true);
+    } catch (error) {
+      console.error('Error al guardar perfil:', error);
+      Toast.show({ type: 'error', text1: 'No se pudo guardar los cambios' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Salir (botón cerrar o "volver atrás") ──
   const handleSalir = () => {
@@ -272,78 +269,40 @@ const handleGuardar = async () => {
       </ScrollView>
 
       {/* ── Modal: salir sin guardar cambios ── */}
-      <Modal
+      <AppModal
         visible={modalSalirVisible}
-        transparent
-        animationType="fade"
         onRequestClose={() => setModalSalirVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>¿Deseas salir sin guardar cambios?</Text>
-            <View style={styles.modalButtonsRow}>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnOutline]}
-                onPress={() => {
-                  setModalSalirVisible(false);
-                  router.replace('/profile');
-                }}
-              >
-                <Text style={styles.modalBtnOutlineText}>No</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
-                onPress={() => {
-                  setModalSalirVisible(false);
-                  router.back();
-                }}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Sí</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        title="¿Deseas salir sin guardar cambios?"
+        secondaryLabel="No"
+        onSecondaryPress={() => {
+          setModalSalirVisible(false);
+          router.replace('/profile');
+        }}
+        primaryLabel="Sí"
+        onPrimaryPress={() => {
+          setModalSalirVisible(false);
+          router.back();
+        }}
+      />
 
-        {/* ── Modal: cambios guardados con éxito ── */}
-      <Modal
+      {/* ── Modal: cambios guardados con éxito ── */}
+      <AppModal
         visible={modalExitoVisible}
-        transparent
-        animationType="fade"
         onRequestClose={() => setModalExitoVisible(false)}
-        >
-        <View style={styles.modalOverlay}>
-            <View style={styles.modalBox}>
-            <View style={styles.checkCircle}>
-                <IconCheck width={32} height={32} fill="#22c55e" />
-            </View>
-            <Text style={styles.modalTitle}>¡Felicidades!</Text>
-            <Text style={styles.modalSubtitle}>
-                Se ha actualizado tu información correctamente
-            </Text>
-            <View style={styles.modalButtonsRow}>
-                <Pressable
-                style={[styles.modalBtn, styles.modalBtnOutline]}
-                onPress={() => {
-                    setModalExitoVisible(false);
-                    router.back();
-                }}
-                >
-                <Text style={styles.modalBtnOutlineText}>Ahora no</Text>
-                </Pressable>
-                <Pressable
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
-                onPress={() => {
-                    setModalExitoVisible(false);
-                    router.replace('/feed');
-                }}
-                >
-                <Text style={styles.modalBtnPrimaryText}>Ir a inicio</Text>
-                </Pressable>
-            </View>
-            </View>
-        </View>
-    </Modal>            
+        icon={<IconCheck width={32} height={32} fill="#22c55e" />}
+        title="¡Felicidades!"
+        subtitle="Se ha actualizado tu información correctamente"
+        secondaryLabel="Ahora no"
+        onSecondaryPress={() => {
+          setModalExitoVisible(false);
+          router.back();
+        }}
+        primaryLabel="Ir a inicio"
+        onPrimaryPress={() => {
+          setModalExitoVisible(false);
+          router.replace('/feed');
+        }}
+      />
     </View>
   );
 }
@@ -450,84 +409,5 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: colors.primary,
     fontFamily: 'Poppins_700Bold',
-  },
-
-  // ── Modales ──
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalBox: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: colors.white,
-    borderRadius: radii.md,
-    padding: spacing.lg,
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  modalTitle: {
-    fontSize: fontSizes.h3,
-    fontWeight: fontWeights.bold,
-    color: colors.titles,
-    textAlign: 'center',
-    fontFamily: 'Poppins_700Bold',
-  },
-  modalSubtitle: {
-    fontSize: fontSizes.body2,
-    color: colors.typography,
-    textAlign: 'center',
-    fontFamily: 'Poppins_400Regular',
-    marginBottom: spacing.sm,
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    width: '100%',
-  },
-  modalBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBtnPrimary: {
-    backgroundColor: colors.primary,
-  },
-  modalBtnPrimaryText: {
-    color: colors.white,
-    fontWeight: fontWeights.bold,
-    fontFamily: 'Poppins_700Bold',
-    fontSize: fontSizes.body2,
-  },
-  modalBtnOutline: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
-  modalBtnOutlineText: {
-    color: colors.primary,
-    fontWeight: fontWeights.bold,
-    fontFamily: 'Poppins_700Bold',
-    fontSize: fontSizes.body2,
-  },
-  checkCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#DCFCE7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  checkIcon: {
-    fontSize: 32,
-    color: '#22c55e',
-    fontWeight: 'bold',
   },
 });

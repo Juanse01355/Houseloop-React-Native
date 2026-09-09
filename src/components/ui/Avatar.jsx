@@ -11,6 +11,7 @@ import IconPerson from '../../../assets/icons/icon-person-outlined.svg';
 
 // ── Tamaños del avatar según el contexto de uso ──
 const SIZES = {
+  xxs:  20,   // nav inferior
   xs:  28,   // nav inferior
   sm:  40,   // feed, tarjetas
   md:  52,   // listados, comentarios
