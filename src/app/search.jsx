@@ -1,11 +1,13 @@
 // ============================================================
 //   SEARCH SCREEN — Módulo de Buscar
-//   Fila de chips de ciudad + grid con todas las propiedades
-//   registradas en la base de datos (por ahora, San Juan de Pasto).
+//   Buscador + filtros + fila de chips de ciudad + grid con
+//   todas las propiedades registradas (por ahora, San Juan de Pasto).
 // ============================================================
 import BottomNav from '@/components/ui/BottomNav';
 import Chip from '@/components/ui/Chip';
+import FilterBottomSheet, { FILTROS_VACIOS } from '@/components/ui/FilterBottomSheet';
 import PropertySearchGrid from '@/components/ui/PropertySearchGrid';
+import SearchBar from '@/components/ui/SearchBar';
 import { BASE_URL } from '@/config/api';
 import { colors, darkColors, fontSizes, fontWeights, spacing } from '@/constants/theme-houseloop';
 import { router, useFocusEffect } from 'expo-router';
@@ -18,6 +20,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Íconos
+import IconAutoAwesomeOutlined from '../../assets/icons/icon-autoawesome-outlined.svg';
 
 const CIUDAD_PRINCIPAL = 'San Juan de Pasto';
 
@@ -33,6 +38,10 @@ export default function SearchScreen() {
   const [ciudad, setCiudad] = useState(CIUDAD_PRINCIPAL);
   const [propiedades, setPropiedades] = useState([]);
   const [cargando, setCargando] = useState(true);
+
+  const [busqueda, setBusqueda] = useState('');
+  const [filtros, setFiltros] = useState(FILTROS_VACIOS);
+  const [filtrosVisible, setFiltrosVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -70,7 +79,52 @@ export default function SearchScreen() {
   );
 
   const esCiudadPrincipal = ciudad === CIUDAD_PRINCIPAL;
-  const propiedadesFiltradas = esCiudadPrincipal ? propiedades : [];
+
+  // ── Aplica búsqueda por palabras + filtros del Bottom Sheet ──
+  // sobre todas las propiedades de la ciudad principal.
+  let propiedadesFiltradas = esCiudadPrincipal ? propiedades : [];
+
+  if (esCiudadPrincipal) {
+    if (busqueda.trim()) {
+      const q = busqueda.trim().toLowerCase();
+      propiedadesFiltradas = propiedadesFiltradas.filter((p) =>
+        [p.titulo, p.descripcion, p.barrio, p.tipo_inmueble]
+          .filter(Boolean)
+          .some((campo) => campo.toLowerCase().includes(q)),
+      );
+    }
+
+    if (filtros.precioMin) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => Number(p.precio) >= Number(filtros.precioMin),
+      );
+    }
+    if (filtros.precioMax) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => Number(p.precio) <= Number(filtros.precioMax),
+      );
+    }
+    if (filtros.tipoInmueble) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => p.tipo_inmueble === filtros.tipoInmueble,
+      );
+    }
+    if (filtros.habitaciones > 0) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => Number(p.habitaciones) >= filtros.habitaciones,
+      );
+    }
+    if (filtros.banos > 0) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => Number(p.banos) >= filtros.banos,
+      );
+    }
+    if (filtros.barrio) {
+      propiedadesFiltradas = propiedadesFiltradas.filter(
+        (p) => p.barrio === filtros.barrio,
+      );
+    }
+  }
 
   let contenido;
   if (cargando) {
@@ -78,9 +132,14 @@ export default function SearchScreen() {
   } else if (!esCiudadPrincipal) {
     contenido = (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>Aún no hay diseño para esta ciudad</Text>
+        <IconAutoAwesomeOutlined
+          width={68}
+          height={68}
+          fill={darkColors.typography}
+        />
+        <Text style={styles.emptyTitle}>Próximamente</Text>
         <Text style={styles.emptySubtitle}>
-          Falta diseñar el estado vacío para {ciudad}.
+          Estamos trabajando para traer propiedades de {ciudad} muy pronto.
         </Text>
       </View>
     );
@@ -89,20 +148,35 @@ export default function SearchScreen() {
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>No hay publicaciones todavía</Text>
         <Text style={styles.emptySubtitle}>
-          Cuando alguien publique un inmueble en {CIUDAD_PRINCIPAL}, aparecerá aquí.
+          No se encontraron resultados para tu búsqueda.
         </Text>
       </View>
     );
   } else {
-    contenido = <PropertySearchGrid propiedades={propiedadesFiltradas} router={router} />;
+    contenido = (
+      <>
+        <Text style={styles.resultsOverline}>
+          Se encontraron {propiedadesFiltradas.length} publicaciones
+        </Text>
+        <PropertySearchGrid propiedades={propiedadesFiltradas} router={router} />
+      </>
+    );
   }
 
   return (
     <View style={styles.container}>
+      {/* ── Buscador + botón de filtros ── */}
+      <SearchBar
+        value={busqueda}
+        onChangeText={setBusqueda}
+        onFilterPress={() => setFiltrosVisible(true)}
+      />
+
       {/* ── Fila de chips de ciudad ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.chipsScroll}
         contentContainerStyle={styles.chipsRow}
       >
         {CIUDADES.map((item) => (
@@ -115,9 +189,21 @@ export default function SearchScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.mainScroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {contenido}
       </ScrollView>
+
+      <FilterBottomSheet
+        visible={filtrosVisible}
+        onClose={() => setFiltrosVisible(false)}
+        propiedades={propiedades}
+        initialFilters={filtros}
+        onApply={setFiltros}
+      />
 
       <View style={[styles.bottomNav, { paddingBottom: insets.bottom }]}>
         <BottomNav activeTab="buscar" />
@@ -131,13 +217,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: darkColors.background,
   },
+  chipsScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
   chipsRow: {
     flexDirection: 'row',
     gap: spacing.xs,
     paddingLeft: spacing.md,
-    paddingRight: spacing.xl,   // más espacio al final para que el último chip no quede pegado al borde
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingRight: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  mainScroll: {
+    flex: 1,
+  },
+  resultsOverline: {
+    fontSize: fontSizes.overline,
+    fontWeight: fontWeights.medium,
+    color: darkColors.typography,
+    fontFamily: 'Poppins_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 14,
+    marginBottom: spacing.sm,
   },
   scrollContent: {
     paddingBottom: 180,
@@ -146,24 +249,28 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxl,
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginHorizontal: 14,
+    minHeight: 470,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    gap: spacing.sm,
   },
   emptyTitle: {
     fontSize: fontSizes.h3,
-    fontWeight: fontWeights.bold,
+    fontWeight: fontWeights.semibold,
     color: darkColors.titles,
-    textAlign: 'center',
-    fontFamily: 'Poppins_700Bold',
+    textAlign: "center",
+    fontFamily: "Poppins_700Bold",
+    marginTop: spacing.xs,
   },
   emptySubtitle: {
     fontSize: fontSizes.body2,
     color: darkColors.typography,
-    textAlign: 'center',
-    fontFamily: 'Poppins_400Regular',
+    textAlign: "center",
+    fontFamily: "Poppins_400Regular",
     lineHeight: 20,
   },
   bottomNav: {

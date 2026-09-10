@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import IconAlternateEmail from "../../assets/icons/icon-alternate-email.svg";
 import IconMoreHorizontal from "../../assets/icons/icon-more-horizontal.svg";
 import IconSettings from "../../assets/icons/icon-settings.svg";
+import IconVideocamOutlined from "../../assets/icons/icon-videocam-outlined.svg";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -180,34 +181,19 @@ export default function ProfileScreen() {
         {/* ── Estado vacío o grid de propiedades ── */}
         {!tienePropiedades ? (
           <View style={styles.emptyState}>
-
-            <View style={styles.emptyIcon}>
-              <Text style={styles.emptyIconText}>
-                ⌂+
-              </Text>
-            </View>
+            <IconVideocamOutlined
+              width={68}
+              height={68}
+              fill={darkColors.typography}
+            />
 
             <Text style={styles.emptyTitle}>
-              Aún no tienes publicaciones
+              Mis Publicaciones
             </Text>
 
             <Text style={styles.emptySubtitle}>
-              Tus propiedades, apartamento, casa, arriendo o lotes se mostrarán
-              aquí.
+              Tus publicaciones se mostrarán aquí
             </Text>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.publishBtn,
-                pressed && styles.publishBtnPressed,
-              ]}
-              onPress={() => router.push("/publish")}
-            >
-              <Text style={styles.publishBtnText}>
-                Publicar Inmueble
-              </Text>
-            </Pressable>
-
           </View>
         ) : (
           <PropertyProfileGrid
@@ -376,64 +362,33 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_400Regular",
   },
 
-  // ── Estado vacío ──
+  // ── Estado vacío (mismo tamaño que ocuparía el grid) ──
   emptyState: {
-    flex: 1,
+    marginHorizontal: 14,
+    minHeight: 398,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    gap: spacing.xs,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    gap: spacing.sm,
-  },
-
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md,
-  },
-
-  emptyIconText: {
-    fontSize: 60,
-    color: colors.primaryDisabled,
   },
 
   emptyTitle: {
     fontSize: fontSizes.h3,
-    fontWeight: fontWeights.bold,
+    fontWeight: fontWeights.semibold,
     color: darkColors.titles,
     textAlign: "center",
     fontFamily: "Poppins_700Bold",
+    marginTop: spacing.xs,
   },
 
   emptySubtitle: {
     fontSize: fontSizes.body2,
-    color: colors.typography,
+    color: darkColors.typography,
     textAlign: "center",
     fontFamily: "Poppins_400Regular",
     lineHeight: 20,
-  },
-
-  publishBtn: {
-    marginTop: spacing.md,
-    width: "100%",
-    height: 56,
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  publishBtnPressed: {
-    backgroundColor: colors.primaryHover,
-  },
-
-  publishBtnText: {
-    fontSize: fontSizes.h3,
-    fontWeight: fontWeights.bold,
-    color: colors.white,
-    fontFamily: "Poppins_700Bold",
   },
 
   // ── Bottom Nav ──

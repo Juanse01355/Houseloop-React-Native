@@ -6,6 +6,7 @@
     "@expo-google-fonts/poppins": "^0.4.1",
     "@expo/ui": "~57.0.1",
     "@expo/vector-icons": "^15.1.1",
+    "maplibre-gl": "1.15.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-picker/picker": "^2.11.4",
     "bcrypt": "^6.0.0",
@@ -29,11 +30,15 @@
     "expo-video": "~57.0.0",
     "expo-web-browser": "^57.0.2",
     "jsonwebtoken": "^9.0.3",
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "^6.9.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-leaflet": "^5.0.0",
     "react-native": "0.86.0",
     "react-native-confetti-cannon": "^1.5.2",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-maps": "1.27.2",
     "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
@@ -56,5 +61,8 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "bcrypt@6.0.0": true
+  }
 }
