@@ -2,6 +2,7 @@
 //   SEARCH SCREEN — Módulo de Buscar
 //   Buscador + filtros + fila de chips de ciudad + grid con
 //   todas las propiedades registradas (por ahora, San Juan de Pasto).
+//   Las propiedades "No disponible" no aparecen en la búsqueda.
 // ============================================================
 import BottomNav from '@/components/ui/BottomNav';
 import Chip from '@/components/ui/Chip';
@@ -10,6 +11,7 @@ import PropertySearchGrid from '@/components/ui/PropertySearchGrid';
 import SearchBar from '@/components/ui/SearchBar';
 import { BASE_URL } from '@/config/api';
 import { colors, darkColors, fontSizes, fontWeights, spacing } from '@/constants/theme-houseloop';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -65,6 +67,59 @@ export default function SearchScreen() {
             }
           });
 
+          // ── Mis propiedades ──
+          // Se piden a la misma ruta que usa el perfil, para que en Buscar
+          // lleguen con los mismos datos (miniatura, reproducciones, estado).
+          // Las "No disponible" no se muestran en la búsqueda.
+          try {
+            const usuarioRaw = await AsyncStorage.getItem('usuario');
+            const miId = usuarioRaw ? JSON.parse(usuarioRaw).id : null;
+
+            if (miId != null) {
+              const resMias = await fetch(`${BASE_URL}/propiedades/usuario/${miId}`);
+              const mias = await resMias.json();
+
+              if (resMias.ok && Array.isArray(mias)) {
+                mias
+                  .filter((m) => m.estado !== 'no_disponible')
+                  .forEach((m) => {
+                    vistas.set(m.id_propiedad, {
+                      ...(vistas.get(m.id_propiedad) || {}),
+                      ...m,
+                      esMia: true,
+                    });
+                  });
+              }
+            }
+          } catch (errorMias) {
+            console.error('Error al cargar mis propiedades:', errorMias);
+          }
+
+          // ── Miniatura del video ──
+          // Si el feed no la trae, se pide a la ruta de detalle (que sí la
+          // devuelve) para que todas las cards muestren el preview del video
+          // y no la foto.
+          const sinMiniatura = Array.from(vistas.values()).filter((p) => !p.miniatura);
+
+          await Promise.all(
+            sinMiniatura.map(async (p) => {
+              try {
+                const resDetalle = await fetch(`${BASE_URL}/propiedades/${p.id_propiedad}`);
+                const detalle = await resDetalle.json();
+
+                if (resDetalle.ok && detalle?.miniatura) {
+                  vistas.set(p.id_propiedad, {
+                    ...vistas.get(p.id_propiedad),
+                    miniatura: detalle.miniatura,
+                    id_usuario: vistas.get(p.id_propiedad).id_usuario ?? detalle.id_usuario,
+                  });
+                }
+              } catch (errorDetalle) {
+                console.error('Error al pedir la miniatura:', errorDetalle);
+              }
+            }),
+          );
+
           setPropiedades(Array.from(vistas.values()));
         } catch (error) {
           console.error('Error al cargar el feed:', error);
@@ -82,7 +137,10 @@ export default function SearchScreen() {
 
   // ── Aplica búsqueda por palabras + filtros del Bottom Sheet ──
   // sobre todas las propiedades de la ciudad principal.
-  let propiedadesFiltradas = esCiudadPrincipal ? propiedades : [];
+  // Las propiedades "No disponible" no se muestran en la búsqueda.
+  let propiedadesFiltradas = esCiudadPrincipal
+    ? propiedades.filter((p) => p.estado !== 'no_disponible')
+    : [];
 
   if (esCiudadPrincipal) {
     if (busqueda.trim()) {

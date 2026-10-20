@@ -10,6 +10,7 @@
 
 import Header from '@/components/ui/Header';
 import Input from '@/components/ui/Input';
+import { ButtonPrimary } from '@/components/ui/Button';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
 import { BASE_URL } from '@/config/api';
 import Toast from 'react-native-toast-message';
@@ -17,9 +18,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable, ScrollView, StyleSheet,
-  Text, View
+  Text, useWindowDimensions, View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Íconos
 import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
@@ -44,6 +47,83 @@ const passwordRules = [
   { id: 'number',  label: 'Al menos un número',                    test: v => /[0-9]/.test(v) },
 ];
 
+// ── Términos y condiciones (texto de ejemplo, cámbialo por el definitivo) ──
+const TERMINOS = [
+  {
+    titulo: '1. Aceptación',
+    texto:
+      'Al crear una cuenta en HouseLoop aceptas estos términos y condiciones. Si no estás de acuerdo con alguno de ellos, no podrás usar la plataforma.',
+  },
+  {
+    titulo: '2. Tu cuenta',
+    texto:
+      'Debes registrar datos reales y mantenerlos actualizados. Eres responsable de la confidencialidad de tu contraseña y de todo lo que ocurra desde tu cuenta.',
+  },
+  {
+    titulo: '3. Uso de la plataforma',
+    texto:
+      'HouseLoop permite publicar, buscar y contactar propiedades en Colombia. No está permitido publicar información falsa, contenido ofensivo, fotos o videos que no sean tuyos, ni usar la app para actividades ilegales.',
+  },
+  {
+    titulo: '4. Publicaciones',
+    texto:
+      'Eres el único responsable de la veracidad de lo que publicas (precio, ubicación, fotos y descripción). HouseLoop puede retirar publicaciones que incumplan estas normas.',
+  },
+  {
+    titulo: '5. Datos personales',
+    texto:
+      'Usamos tu nombre, correo y teléfono solo para el funcionamiento de la plataforma y para que otros usuarios puedan contactarte cuando tú lo permitas. Tratamos tus datos conforme a la normativa colombiana de protección de datos personales (Ley 1581 de 2012) y no los vendemos a terceros.',
+  },
+  {
+    titulo: '6. Responsabilidad',
+    texto:
+      'HouseLoop es un intermediario de contacto. No participa en pagos, contratos ni visitas entre usuarios, y no se hace responsable por los acuerdos que ustedes realicen.',
+  },
+  {
+    titulo: '7. Suspensión de la cuenta',
+    texto:
+      'Podemos suspender o eliminar cuentas que incumplan estos términos. También puedes pedir que eliminemos tu cuenta escribiendo a soporte@houseloop.co.',
+  },
+  {
+    titulo: '8. Cambios',
+    texto:
+      'Podemos actualizar estos términos. Cuando haya cambios importantes te lo informaremos dentro de la app.',
+  },
+];
+
+// ── Hoja inferior con los términos y condiciones ──
+function TerminosSheet({ visible, onClose, onAceptar }) {
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.sheetOverlay}>
+        {/* Fondo oscuro: tocarlo cierra la hoja */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitulo}>Términos y condiciones</Text>
+
+          <ScrollView style={{ maxHeight: height * 0.5 }} showsVerticalScrollIndicator={false}>
+            {TERMINOS.map((t) => (
+              <View key={t.titulo} style={styles.terminoItem}>
+                <Text style={styles.terminoTitulo}>{t.titulo}</Text>
+                <Text style={styles.terminoTexto}>{t.texto}</Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={styles.sheetBtn}>
+            <ButtonPrimary text="Aceptar" onPress={onAceptar} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function SignupScreen() {
   const [name, setName]           = useState('');
   const [email, setEmail]         = useState('');
@@ -53,6 +133,7 @@ export default function SignupScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [terms, setTerms]         = useState(false);
+  const [showTerms, setShowTerms] = useState(false); // abre / cierra la hoja de términos
   const [loading, setLoading]     = useState(false);
 
 
@@ -204,17 +285,26 @@ export default function SignupScreen() {
           </Text>
         )}
 
-        {/* Términos y condiciones */}
+        {/* Términos y condiciones: el círculo marca/desmarca, el texto rosado abre la hoja */}
         <View style={styles.options}>
-          <Pressable
-            style={styles.remember}
-            onPress={() => setTerms(!terms)}
-          >
-            <View style={[styles.radio, terms && styles.radioActive]}>
-              {terms && <View style={styles.radioDot} />}
-            </View>
-            <Text style={styles.rememberText}>Aceptar términos y condiciones</Text>
-          </Pressable>
+          <View style={styles.remember}>
+            <Pressable
+              onPress={() => setTerms(!terms)}
+              hitSlop={8}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: terms }}
+            >
+              <View style={[styles.radio, terms && styles.radioActive]}>
+                {terms && <View style={styles.radioDot} />}
+              </View>
+            </Pressable>
+            <Text style={styles.rememberText}>
+              Acepto los{' '}
+              <Text style={styles.terminosLink} onPress={() => setShowTerms(true)}>
+                términos y condiciones
+              </Text>
+            </Text>
+          </View>
         </View>
 
         {/* Botón crear cuenta */}
@@ -238,6 +328,16 @@ export default function SignupScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Hoja de términos y condiciones */}
+      <TerminosSheet
+        visible={showTerms}
+        onClose={() => setShowTerms(false)}
+        onAceptar={() => {
+          setTerms(true);
+          setShowTerms(false);
+        }}
+      />
 
     </View>
   );
@@ -323,9 +423,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   rememberText: {
+    flexShrink: 1,
     fontSize: fontSizes.body2,
     color: colors.titles,
     fontFamily: 'Poppins_400Regular',
+  },
+  terminosLink: {
+    color: colors.primary,
+    fontFamily: 'Poppins_400Regular',
+    textDecorationLine: 'underline',
   },
 
   btn: {
@@ -360,5 +466,53 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: fontWeights.bold,
     fontFamily: 'Poppins_700Bold',
+  },
+
+  // ── Hoja de términos y condiciones ──
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: radii.full,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  sheetTitulo: {
+    fontSize: fontSizes.h3,
+    fontWeight: '700',
+    color: colors.titles,
+    fontFamily: 'Poppins_700Bold',
+    marginBottom: spacing.md,
+  },
+  terminoItem: {
+    marginBottom: spacing.md,
+  },
+  terminoTitulo: {
+    fontSize: fontSizes.body2,
+    fontWeight: '700',
+    color: colors.titles,
+    fontFamily: 'Poppins_400Regular',
+    marginBottom: spacing.xs,
+  },
+  terminoTexto: {
+    fontSize: fontSizes.body3,
+    color: colors.typography,
+    fontFamily: 'Poppins_400Regular',
+    lineHeight: 20,
+  },
+  sheetBtn: {
+    marginTop: spacing.md,
   },
 });

@@ -1,13 +1,17 @@
 // ============================================================
-//   PROFILE SCREEN — Pantalla de perfil del usuario
-//   Muestra la información del usuario y el menú de opciones.
+//   PROFILE SCREEN — Pantalla de MI perfil
+//   Cabecera FIJA arriba (avatar, nombre, correo, ajustes y menú)
+//   y debajo, con scroll, la grid de propiedades.
 //   La grid de propiedades está en PropertyProfileGrid.
+//
+//   El perfil de OTROS usuarios está en user-profile.jsx
 // ============================================================
 
 import Avatar from "@/components/ui/Avatar";
 import BottomNav from "@/components/ui/BottomNav";
 import PropertyProfileGrid from "../components/ui/PropertyProfileGrid";
 import { BASE_URL } from "@/config/api";
+import { mostrarToast } from "@/config/toast-config";
 import {
   colors,
   darkColors,
@@ -20,6 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Modal,
   Pressable,
@@ -32,16 +37,38 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Íconos
 import IconAlternateEmail from "../../assets/icons/icon-alternate-email.svg";
+import IconLogout from "../../assets/icons/icon-logout.svg";
 import IconMoreHorizontal from "../../assets/icons/icon-more-horizontal.svg";
 import IconSettings from "../../assets/icons/icon-settings.svg";
 import IconVideocamOutlined from "../../assets/icons/icon-videocam-outlined.svg";
+
+// Cuánto hay que bajar (en px) para que aparezca la barra fija.
+// Es más o menos el alto de la cabecera grande (avatar + nombre + botones).
+const UMBRAL_BARRA = 230;
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-  const menuBtnRef = useRef(null);
+  const menuBtnRef = useRef(null); // botón ⋯ de la cabecera grande
+  const menuBtnFijoRef = useRef(null); // botón ⋯ de la barra fija
   const [cargando, setCargando] = useState(true);
+
+  // Barra compacta: aparece solo cuando se hace scroll hacia abajo
+  const [barraVisible, setBarraVisible] = useState(false);
+  const opacidadBarra = useRef(new Animated.Value(0)).current;
+
+  const alHacerScroll = (e) => {
+    const mostrar = e.nativeEvent.contentOffset.y > UMBRAL_BARRA;
+    if (mostrar !== barraVisible) {
+      setBarraVisible(mostrar);
+      Animated.timing(opacidadBarra, {
+        toValue: mostrar ? 1 : 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  };
 
   const [usuario, setUsuario] = useState({
     nombre: "",
@@ -120,8 +147,8 @@ export default function ProfileScreen() {
   // ── Abre el menú, midiendo antes la posición real del botón ──
   // Ancla el borde DERECHO del menú con el borde derecho del botón,
   // para que crezca hacia la izquierda y no se salga de la pantalla.
-  const abrirMenu = () => {
-    menuBtnRef.current?.measureInWindow((x, y, width, height) => {
+  const abrirMenu = (ref) => {
+    ref.current?.measureInWindow((x, y, width, height) => {
       const windowWidth = Dimensions.get("window").width;
       setMenuPos({
         top: y + height + spacing.xs,
@@ -131,11 +158,21 @@ export default function ProfileScreen() {
     });
   };
 
+  // ── Cerrar sesión: borra la sesión guardada, va al login y avisa con el toast ──
+  const cerrarSesion = async () => {
+    setMenuVisible(false);
+    await AsyncStorage.multiRemove(["token", "usuario"]);
+    router.replace("/login");
+    mostrarToast("sesionCerrada");
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={alHacerScroll}
+        scrollEventThrottle={16}
       >
 
         {/* ── Sección de información del usuario ── */}
@@ -171,7 +208,7 @@ export default function ProfileScreen() {
             <Pressable
               ref={menuBtnRef}
               style={styles.menuBtn}
-              onPress={abrirMenu}
+              onPress={() => abrirMenu(menuBtnRef)}
             >
               <IconMoreHorizontal width={24} height={24} fill={colors.white} />
             </Pressable>
@@ -204,6 +241,46 @@ export default function ProfileScreen() {
 
       </ScrollView>
 
+      {/* ── Barra FIJA compacta: solo aparece al hacer scroll ──
+          Avatar, nombre y correo a la izquierda; ruedita y menú a la derecha. */}
+      <Animated.View
+        style={[
+          styles.barraFija,
+          { paddingTop: insets.top + spacing.sm, opacity: opacidadBarra },
+        ]}
+        pointerEvents={barraVisible ? "auto" : "none"}
+      >
+        <Avatar uri={usuario.foto} size="sm" />
+
+        <View style={styles.barraInfo}>
+          <Text style={styles.barraNombre} numberOfLines={1}>
+            {usuario.nombre}
+          </Text>
+          <View style={styles.barraCorreoRow}>
+            <Text style={styles.barraCorreo} numberOfLines={1}>
+              {usuario.correo}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={styles.circleBtn}
+          onPress={() => router.push("/edit-profile")}
+          accessibilityLabel="Editar perfil"
+        >
+          <IconSettings width={22} height={22} fill={colors.white} />
+        </Pressable>
+
+        <Pressable
+          ref={menuBtnFijoRef}
+          style={styles.circleBtn}
+          onPress={() => abrirMenu(menuBtnFijoRef)}
+          accessibilityLabel="Más opciones"
+        >
+          <IconMoreHorizontal width={22} height={22} fill={colors.white} />
+        </Pressable>
+      </Animated.View>
+
       {/* ── Menú desplegable (fuera del ScrollView, en un Modal) ── */}
       <Modal
         visible={menuVisible}
@@ -221,20 +298,10 @@ export default function ProfileScreen() {
               { top: menuPos.top, right: menuPos.right },
             ]}
           >
-            <Pressable
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                router.replace("/login");
-              }}
-            >
-              <Text
-                style={[
-                  styles.menuItemText,
-                  { color: colors.primary },
-                ]}
-              >
-                ⏻ Cerrar sesión
+            <Pressable style={styles.menuItem} onPress={cerrarSesion}>
+              <IconLogout width={20} height={20} fill={colors.primary} />
+              <Text style={styles.menuItemText} numberOfLines={1}>
+                Cerrar sesión
               </Text>
             </Pressable>
           </View>
@@ -329,6 +396,57 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  // ── Barra fija compacta (aparece al hacer scroll) ──
+  barraFija: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    backgroundColor: darkColors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+
+  barraInfo: {
+    flex: 1,
+  },
+
+  barraNombre: {
+    fontSize: fontSizes.body2,
+    fontWeight: fontWeights.bold,
+    color: darkColors.titles,
+    fontFamily: "Poppins_700Bold",
+  },
+
+  barraCorreoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+
+  barraCorreo: {
+    flexShrink: 1,
+    fontSize: fontSizes.body3,
+    color: darkColors.typography,
+    fontFamily: "Poppins_400Regular",
+  },
+
+  circleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   // ── Overlay + dropdown del menú (dentro del Modal) ──
   menuOverlay: {
     flex: 1,
@@ -349,16 +467,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
-    minWidth: 180,
+    minWidth: 200,
   },
 
   menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     padding: spacing.md,
   },
 
   menuItemText: {
     fontSize: fontSizes.body2,
-    color: colors.titles,
+    color: colors.primary,
     fontFamily: "Poppins_400Regular",
   },
 

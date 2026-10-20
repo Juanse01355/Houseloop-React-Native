@@ -2,24 +2,29 @@
 //   EDIT PROFILE SCREEN — Pantalla de editar perfil
 //   Reutiliza Input (nombre, correo) y Avatar del resto de la app.
 // ============================================================
-import IconCheck from '../../assets/icons/icon-check.svg';
+import IconSave from '../../assets/icons/icon-save.svg';
 import Avatar from '@/components/ui/Avatar';
 import Input from '@/components/ui/Input';
-import AppModal from '@/components/ui/AppModal';
+import { BASE_URL } from '@/config/api';
+import { mostrarToast } from '@/config/toast-config';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
+import { File } from 'expo-file-system';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Íconos (mismos que usa signup.jsx)
 import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
@@ -32,6 +37,7 @@ const LIMITS = {
 };
 
 export default function EditProfileScreen() {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [foto, setFoto] = useState(null);
@@ -45,9 +51,8 @@ export default function EditProfileScreen() {
     foto: null,
   });
 
-  // ── Modales ──
+  // ── Hoja de "guardar cambios antes de salir" ──
   const [modalSalirVisible, setModalSalirVisible] = useState(false);
-  const [modalExitoVisible, setModalExitoVisible] = useState(false);
 
   // ── Precargar los datos actuales del usuario ──
   useEffect(() => {
@@ -103,13 +108,19 @@ export default function EditProfileScreen() {
   const subirFotoPerfil = async (token) => {
     if (!fotoCambio || !foto) return null;
 
-    const respuestaBlob = await fetch(foto);
-    const blob = await respuestaBlob.blob();
-
     const formData = new FormData();
-    formData.append('foto_perfil', blob, 'foto_perfil.jpg');
 
-    const response = await fetch('http://localhost:3300/api/perfil/foto_perfil', {
+    // Web: FormData necesita un Blob. Celular: fetch(uri).blob() llega vacío,
+    // así que se usa un File de expo-file-system (igual que en publish.jsx).
+    if (Platform.OS === 'web') {
+      const respuestaBlob = await fetch(foto);
+      const blob = await respuestaBlob.blob();
+      formData.append('foto_perfil', blob, 'foto_perfil.jpg');
+    } else {
+      formData.append('foto_perfil', new File(foto));
+    }
+
+    const response = await fetch(`${BASE_URL}/api/perfil/foto_perfil`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -130,6 +141,10 @@ export default function EditProfileScreen() {
   // Manda nombre y correo al backend (PUT /api/perfil) para actualizar
   // la base de datos, y si sale bien, refleja el cambio también en
   // AsyncStorage para que el resto de la app vea el dato actualizado.
+  //
+  // Al terminar va al perfil y muestra un toast:
+  //   - Si cambió la foto → "Foto de perfil actualizada".
+  //   - Si cambió solo el nombre o el correo → "Cambios guardados".
   const handleGuardar = async () => {
     if (!canSubmit) return;
 
@@ -148,7 +163,7 @@ export default function EditProfileScreen() {
         fotoUrlFinal = await subirFotoPerfil(token);
       }
 
-      const response = await fetch('http://localhost:3300/api/perfil', {
+      const response = await fetch(`${BASE_URL}/api/perfil`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -179,13 +194,27 @@ export default function EditProfileScreen() {
       setOriginalUsuario({ nombre: name, correo: email, foto: fotoUrlFinal });
       setFoto(fotoUrlFinal);
 
-      setModalExitoVisible(true);
+      // Toast según lo que cambió y directo al perfil
+      mostrarToast(fotoCambio ? 'fotoPerfil' : 'cambiosGuardados');
+      router.replace('/profile');
     } catch (error) {
       console.error('Error al guardar perfil:', error);
       Toast.show({ type: 'error', text1: 'No se pudo guardar los cambios' });
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Guardar desde la hoja de "salir": cierra la hoja y guarda ──
+  const guardarYSalir = () => {
+    setModalSalirVisible(false);
+
+    if (!canSubmit) {
+      Toast.show({ type: 'error', text1: 'Revisa tu nombre y correo antes de guardar' });
+      return;
+    }
+
+    handleGuardar();
   };
 
   // ── Salir (botón cerrar o "volver atrás") ──
@@ -268,41 +297,50 @@ export default function EditProfileScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* ── Modal: salir sin guardar cambios ── */}
-      <AppModal
+      {/* ── Hoja inferior: ¿guardar los cambios antes de salir? ── */}
+      <Modal
         visible={modalSalirVisible}
+        transparent
+        animationType="slide"
         onRequestClose={() => setModalSalirVisible(false)}
-        title="¿Deseas salir sin guardar cambios?"
-        secondaryLabel="No"
-        onSecondaryPress={() => {
-          setModalSalirVisible(false);
-          router.replace('/profile');
-        }}
-        primaryLabel="Sí"
-        onPrimaryPress={() => {
-          setModalSalirVisible(false);
-          router.back();
-        }}
-      />
+      >
+        <View style={styles.salirOverlay}>
+          {/* Fondo oscuro: tocarlo cierra la hoja y sigue editando */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setModalSalirVisible(false)}
+          />
 
-      {/* ── Modal: cambios guardados con éxito ── */}
-      <AppModal
-        visible={modalExitoVisible}
-        onRequestClose={() => setModalExitoVisible(false)}
-        icon={<IconCheck width={32} height={32} fill="#22c55e" />}
-        title="¡Felicidades!"
-        subtitle="Se ha actualizado tu información correctamente"
-        secondaryLabel="Ahora no"
-        onSecondaryPress={() => {
-          setModalExitoVisible(false);
-          router.back();
-        }}
-        primaryLabel="Ir a inicio"
-        onPrimaryPress={() => {
-          setModalExitoVisible(false);
-          router.replace('/feed');
-        }}
-      />
+          <View style={[styles.salirSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <View style={styles.salirHandle} />
+
+            <View style={styles.salirBadge}>
+              <IconSave width={28} height={28} fill={colors.primary} />
+            </View>
+
+            <Text style={styles.salirTitulo}>¿Quieres guardar los cambios?</Text>
+            <Text style={styles.salirSubtitulo}>
+              Si sales ahora, perderás los cambios que hiciste en tu perfil.
+            </Text>
+
+            <View style={styles.salirAcciones}>
+              <Pressable style={styles.btnPrimary} onPress={guardarYSalir}>
+                <Text style={styles.btnPrimaryText}>Guardar cambios</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.btnOutline}
+                onPress={() => {
+                  setModalSalirVisible(false);
+                  router.back();
+                }}
+              >
+                <Text style={styles.btnOutlineText}>Salir sin guardar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -409,5 +447,54 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     color: colors.primary,
     fontFamily: 'Poppins_700Bold',
+  },
+
+  // ── Hoja inferior de "guardar cambios" (mismo estilo que "Cambiar disponibilidad") ──
+  salirOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  salirSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    alignItems: 'center',
+  },
+  salirHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: radii.full,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  salirBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.full,
+    backgroundColor: colors.secondaryHover,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  salirTitulo: {
+    fontSize: fontSizes.h3,
+    fontWeight: fontWeights.bold,
+    color: colors.titles,
+    fontFamily: 'Poppins_700Bold',
+    textAlign: 'center',
+  },
+  salirSubtitulo: {
+    fontSize: fontSizes.body2,
+    color: colors.typography,
+    fontFamily: 'Poppins_400Regular',
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  salirAcciones: {
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
   },
 });

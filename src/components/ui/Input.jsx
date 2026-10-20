@@ -2,13 +2,28 @@
 //   INPUT — Componente reutilizable
 //   Equivalente de .input-group en components.css
 //   Campo de texto con label flotante e ícono 
+//
+//   Props opcionales nuevas (no afectan a login ni signup):
+//     maxLength        máximo de caracteres del campo
+//     contenedorStyle  estilos extra para la caja (ej. quitar el marginBottom)
 // ============================================================
 
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, TextInput, View } from 'react-native';
 
-export default function Input({ label, icon, iconActive, secureTextEntry, keyboardType, value, onChangeText, onFocusExternal }) {
+export default function Input({
+  label,
+  icon,
+  iconActive,
+  secureTextEntry,
+  keyboardType,
+  value,
+  onChangeText,
+  onFocusExternal,
+  maxLength,
+  contenedorStyle,
+}) {
   const [isFocused, setIsFocused] = useState(false);
   const labelAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -58,7 +73,13 @@ export default function Input({ label, icon, iconActive, secureTextEntry, keyboa
   });
 
   return (
-    <View style={[styles.inputGroup, isFocused && styles.inputGroupFocused]}>
+    <View
+      style={[
+        styles.inputGroup,
+        isFocused && styles.inputGroupFocused,
+        contenedorStyle,
+      ]}
+    >
 
       {/* Label flotante */}
       <Animated.Text
@@ -79,6 +100,7 @@ export default function Input({ label, icon, iconActive, secureTextEntry, keyboa
         onBlur={handleBlur}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
+        maxLength={maxLength}
         placeholderTextColor="transparent"
       />
 

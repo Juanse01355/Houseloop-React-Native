@@ -12,59 +12,345 @@ import {
 } from "@/constants/theme-houseloop";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  FlatList,
   Pressable,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   useWindowDimensions,
-  View
+  View,
 } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 // Íconos SVG
+import IconChat from "../../assets/icons/icon-chat.svg";
 import IconChevronRight from "../../assets/icons/icon-chevron-right.svg";
-import IconFavorite from "../../assets/icons/icon-favorite.svg";
 import IconPlay from "../../assets/icons/icon-play.svg";
 import IconShare from "../../assets/icons/icon-share.svg";
+import IconVolumeOff from "../../assets/icons/icon-volume-off.svg";
+import IconVolumeUp from "../../assets/icons/icon-volume-up.svg";
 
 // URL base del backend
-const API_URL = "http://localhost:3300";
+import { BASE_URL } from "@/config/api";
 
+// "contain" muestra el video COMPLETO sin recortarlo: se ajusta al ancho de la
+// pantalla y la zona del video queda del tamaño real del video (barras negras
+// arriba y abajo en videos horizontales). Con "cover" se llenaría toda la
+// pantalla pero recortando los lados.
+const VIDEO_FIT = "contain";
+
+// ══════════════════════════════════════════════════════════
+// COMPONENTE: FeedCard
+// Cada card del feed — un video con info de la propiedad
+//
+// - isActive: solo la card visible en pantalla (y con el feed en foco)
+//   reproduce video; las demás quedan pausadas, silenciadas y reiniciadas.
+// - soundOn / onToggleSound: el sonido es un estado GLOBAL del feed
+//   (como TikTok), no por card — el audio "viaja" con la preferencia
+//   del usuario, pero siempre suena solo en la card activa.
+// - usuarioId: id del usuario logueado. Se usa para ocultar el botón
+//   de contacto en las propiedades que son del propio usuario.
+// ══════════════════════════════════════════════════════════
+function FeedCard({
+  propiedad,
+  width,
+  height,
+  isActive,
+  soundOn,
+  onToggleSound,
+  usuarioId,
+}) {
+  const [isPaused, setIsPaused] = useState(false);
+
+  // propiedad.video ya viene como URL completa desde el backend
+  const videoUrl = propiedad.video || null;
+
+  // ── ¿La propiedad es del usuario logueado? ──
+  // Si es mía, no tiene sentido mostrarme el botón de contactar.
+  const idDuenoPropiedad =
+    propiedad.id_usuario ?? propiedad.id_propietario ?? propiedad.usuario_id;
+  const esMia =
+    usuarioId != null &&
+    idDuenoPropiedad != null &&
+    String(idDuenoPropiedad) === String(usuarioId);
+
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = true;
+    // Arranca silenciado: los navegadores bloquean el autoplay CON sonido
+    p.muted = true;
+  });
+
+  // ── Controla play/pause/mute según si esta card está activa ──
+  useEffect(() => {
+    try {
+      if (!isActive) {
+        // Card fuera de pantalla: pausada, muda y reiniciada
+        player.pause();
+        player.muted = true;
+        player.currentTime = 0;
+        setIsPaused(false);
+        return;
+      }
+
+      // Card activa: respeta la preferencia global de sonido
+      player.muted = !soundOn;
+      if (isPaused) {
+        player.pause();
+      } else {
+        player.play();
+      }
+    } catch (error) {
+      // El navegador puede rechazar play() en ciertos contextos
+      // (política de autoplay) — no rompemos la pantalla.
+      console.warn("No se pudo controlar la reproducción:", error);
+    }
+  }, [isActive, isPaused, soundOn, player]);
+
+  // ── Cuenta una reproducción (como TikTok) ──
+  // Solo se registra si el video se queda activo 1.5 s, así no se cuentan
+  // las cards por las que el usuario pasa haciendo scroll rápido.
+  useEffect(() => {
+    if (!isActive || !videoUrl) return;
+    const timer = setTimeout(() => {
+      fetch(`${BASE_URL}/propiedades/${propiedad.id_propiedad}/reproduccion`, {
+        method: "POST",
+      }).catch(() => {
+        // Si falla el conteo no afecta la experiencia del usuario
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [isActive, videoUrl, propiedad.id_propiedad]);
+
+  const handlePress = () => setIsPaused((prev) => !prev);
+
+  // ── Ir al perfil del propietario ──
+  // Si la propiedad es mía abre mi perfil; si no, el perfil de ese usuario.
+  const irAlPerfil = () => {
+    // Id del dueño de la propiedad (por si el backend lo manda con otro nombre)
+    const idDueno =
+      propiedad.id_usuario ?? propiedad.id_propietario ?? propiedad.usuario_id;
+
+    console.log(
+      "👤 Tocaron el avatar. Campos que trae la propiedad:",
+      Object.keys(propiedad),
+    );
+    console.log("👤 id del dueño:", idDueno, "| es mía:", esMia);
+
+    if (esMia) {
+      router.push("/profile");
+      return;
+    }
+
+    // Sin id no se puede abrir el perfil: el backend del feed debe enviar id_usuario
+    if (!idDueno) {
+      Toast.show({
+        type: "warning",
+        text1: "No se pudo abrir el perfil de este usuario",
+      });
+      return;
+    }
+
+    router.push({
+      pathname: "/user-profile",
+      params: {
+        id: idDueno,
+        nombre: propiedad.propietario ?? "",
+        foto: propiedad.foto_perfil_url ?? "",
+      },
+    });
+  };
+
+  return (
+    <TouchableOpacity
+      style={{ width, height, backgroundColor: "#000", overflow: "hidden" }}
+      onPress={handlePress}
+      activeOpacity={1}
+    >
+      {/* Video de la propiedad */}
+      {videoUrl ? (
+        <VideoView
+          style={{ width, height }}
+          player={player}
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+          contentFit={VIDEO_FIT}
+        />
+      ) : (
+        // Fondo oscuro si no hay video
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111" }]} />
+      )}
+
+      {/* Overlay con degradado */}
+      <LinearGradient
+        colors={[
+          "rgba(0,0,0,0.5)",
+          "rgba(0,0,0,0)",
+          "rgba(0,0,0,0)",
+          "rgba(0,0,0,0.5)",
+        ]}
+        locations={[0, 0.4, 0.75, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+
+      {/* Botón play — aparece solo cuando está pausado */}
+      {isPaused && (
+        <View style={styles.playBtn} pointerEvents="none">
+          <IconPlay width={48} height={48} fill={colors.white} />
+        </View>
+      )}
+
+      {/* Acciones lado derecho */}
+      <View style={styles.actions}>
+        {/* Contactar: solo en propiedades de otros usuarios → abre el formulario de contacto */}
+        {!esMia && (
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              router.push(`/contact?id=${propiedad.id_propiedad}`);
+            }}
+            accessibilityLabel="Contactar al propietario"
+          >
+            <IconChat width={28} height={28} fill={colors.white} />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.actionBtn}>
+          <IconShare width={28} height={28} fill={colors.white} />
+        </TouchableOpacity>
+
+        {/* Botón de sonido — estado global del feed */}
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            onToggleSound();
+          }}
+        >
+          {soundOn ? (
+            <IconVolumeUp width={28} height={28} fill={colors.white} />
+          ) : (
+            <IconVolumeOff
+              width={28}
+              height={28}
+              fill={colors.white}
+              style={styles.muteIconDisabled}
+            />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Info inferior izquierda */}
+      <View style={styles.info}>
+        <Pressable style={styles.user} onPress={irAlPerfil}>
+          <Avatar uri={propiedad.foto_perfil_url} size="sm" />
+          <View>
+            <Text style={styles.username}>{propiedad.propietario}</Text>
+            <Text style={styles.userRole}>Propietario</Text>
+          </View>
+        </Pressable>
+
+        {/* Botón Ver más → navega al detalle pasando el id */}
+        <Pressable
+          onPress={() => router.push(`/detail?id=${propiedad.id_propiedad}`)}
+          style={({ pressed }) => [
+            styles.detailBtn,
+            pressed && styles.detailBtnPressed,
+          ]}
+        >
+          <View style={styles.detailCircle}>
+            <IconChevronRight width={12} height={12} fill={colors.white} />
+          </View>
+          <Text style={styles.detailBtnText}>Ver más</Text>
+        </Pressable>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// PANTALLA PRINCIPAL: FeedScreen
+// ══════════════════════════════════════════════════════════
 export default function FeedScreen() {
-  const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const { bienvenida } = useLocalSearchParams();
 
-  const [isPaused, setIsPaused] = useState(false);
-  const [progress, setProgress] = useState(0);
+  // ── Altura real del área del feed (medida con onLayout) ──
+  // Así cada card ocupa exactamente una pantalla y el paging encaja.
+  const [itemHeight, setItemHeight] = useState(0);
+
   const [activeFilter, setActiveFilter] = useState("ventas");
   const [propiedades, setPropiedades] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [usuario, setUsuario] = useState({ nombre: "", foto: null });
-  const videoRef = useRef(null);
 
-  const player = useVideoPlayer(
-    require("../../assets/videos/prueba.mp4"),
-    (p) => {
-      p.loop = true;
-      p.play();
-    },
+  // ── Id del usuario logueado (para saber cuáles propiedades son mías) ──
+  const [usuarioId, setUsuarioId] = useState(null);
+
+  // ── Índice de la card actualmente visible en pantalla ──
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // ── Referencia a la lista, para volver al primer video al cambiar de filtro ──
+  const listRef = useRef(null);
+
+  // ── Filtro Ventas / Alquiler ──
+  // En la base de datos tipo_operacion vale "venta" o "arriendo".
+  const propiedadesFiltradas = useMemo(() => {
+    const tipo = activeFilter === "ventas" ? "venta" : "arriendo";
+    return propiedades.filter((p) => p.tipo_operacion === tipo);
+  }, [propiedades, activeFilter]);
+
+  // ── Cambia el filtro y vuelve al primer video de la nueva lista ──
+  const cambiarFiltro = (filtro) => {
+    if (filtro === activeFilter) return;
+    setActiveFilter(filtro);
+    setActiveIndex(0);
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  };
+
+  // ── true solo mientras la pantalla del feed está en foco ──
+  const [isFocused, setIsFocused] = useState(true);
+
+  // ── Preferencia de sonido del usuario, compartida por todo el feed ──
+  // Arranca en false (silenciado) porque los navegadores no dejan
+  // autoplay con sonido. El usuario la activa con el botón de volumen.
+  const [soundOn, setSoundOn] = useState(false);
+  const toggleSound = useCallback(() => setSoundOn((s) => !s), []);
+
+  // ── Detecta qué card está visible mientras el usuario hace scroll ──
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setActiveIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 60,
+  }).current;
+
+  // ── Al salir del feed (detalle, perfil, otra pestaña) NINGUNA card suena ──
+  // No tocamos activeIndex, así al volver sigues en el mismo video.
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
   );
 
   // ── Cargar propiedades del feed desde el backend ──
   const cargarFeed = async () => {
     try {
-      const response = await fetch(`${API_URL}/propiedades/feed`);
+      const response = await fetch(`${BASE_URL}/propiedades/feed`);
       const data = await response.json();
       setPropiedades(data);
-      console.log("Propiedades:", data);
     } catch (error) {
       console.error("Error cargando el feed:", error);
     }
@@ -74,133 +360,113 @@ export default function FeedScreen() {
     cargarFeed();
   }, []);
 
-  // ── Cargar datos del usuario logueado (nombre y foto) ──
+  // ── Leer el id del usuario logueado (guardado en el login) ──
+  useEffect(() => {
+    async function cargarUsuarioId() {
+      try {
+        const usuarioRaw = await AsyncStorage.getItem("usuario");
+        if (usuarioRaw) {
+          setUsuarioId(JSON.parse(usuarioRaw).id);
+        }
+      } catch (error) {
+        console.error("Error leyendo el usuario guardado:", error);
+      }
+    }
+    cargarUsuarioId();
+  }, []);
+
+  // ── Cargar datos del usuario logueado ──
   useEffect(() => {
     async function cargarUsuario() {
       try {
         const token = await AsyncStorage.getItem("token");
         if (!token) return;
-
-        const response = await fetch(`${API_URL}/api/perfil`, {
+        const response = await fetch(`${BASE_URL}/api/perfil`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         const data = await response.json();
-
         if (response.ok) {
-          setUsuario({ nombre: data.nombre, foto: data.foto_perfil_url }); // foto null por ahora
+          setUsuario({ nombre: data.nombre, foto: data.foto_perfil_url });
         }
       } catch (error) {
         console.error("Error al cargar el usuario:", error);
       }
     }
-
     cargarUsuario();
   }, []);
 
-  // ── Bienvenida: solo la primera vez que el usuario inicia sesión ──
-  // (login.jsx manda ?bienvenida=true la primera vez que alguien entra)
+  // ── Bienvenida primer ingreso ──
   useEffect(() => {
     if (bienvenida === "true") {
       Toast.show({
-        type: "bienvenida", // tipo custom sin ícono, definido en tu Toast config (toast-config.jsx)
+        type: "bienvenida",
         text1: "¡Holaa! 🚀 Bienvenido a HouseLoop 🎉",
       });
-      // El confeti sale un instante después del toast, no al mismo tiempo
       setTimeout(() => {
         setShowConfetti(true);
       }, 600);
     }
   }, [bienvenida]);
 
-  const handleVideoPress = () => {
-    if (isPaused) {
-      player.play();
-    } else {
-      player.pause();
-    }
-    setIsPaused(!isPaused);
-  };
-
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+    >
       <StatusBar translucent={false} backgroundColor="#000" />
 
-      {/* Card del feed */}
-      <TouchableOpacity
-        style={styles.card}
-        onPress={handleVideoPress}
-        activeOpacity={1}
-      >
-        <VideoView
-          ref={videoRef}
-          style={styles.video}
-          player={player}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
+      {/* Feed tipo TikTok — cada propiedad ocupa toda la pantalla */}
+      {itemHeight > 0 && (
+        <FlatList
+          ref={listRef}
+          data={propiedadesFiltradas}
+          keyExtractor={(item) => String(item.id_propiedad)}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          snapToInterval={itemHeight}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          disableIntervalMomentum
+          getItemLayout={(_, index) => ({
+            length: itemHeight,
+            offset: itemHeight * index,
+            index,
+          })}
+          // Mantiene montados solo unos pocos videos (ahorra RAM)
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          windowSize={3}
+          removeClippedSubviews
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          renderItem={({ item, index }) => (
+            <FeedCard
+              propiedad={item}
+              width={width}
+              height={itemHeight}
+              isActive={isFocused && index === activeIndex}
+              soundOn={soundOn}
+              onToggleSound={toggleSound}
+              usuarioId={usuarioId}
+            />
+          )}
         />
+      )}
 
-        <LinearGradient
-          colors={[
-            "rgba(0,0,0,0.5)",
-            "rgba(0,0,0,0)",
-            "rgba(0,0,0,0)",
-            "rgba(0,0,0,0.5)",
-          ]}
-          locations={[0, 0.4, 0.75, 1]}
-          style={styles.overlay}
-        />
-
-        {isPaused && (
-          <View style={styles.playBtn}>
-            <IconPlay width={48} height={48} fill={colors.white} />
-          </View>
-        )}
-
-        {/* Acciones lado derecho */}
-        <View style={styles.actions}>
-          <View style={styles.action}>
-            <TouchableOpacity style={styles.actionBtn}>
-              <IconFavorite width={28} height={28} fill={colors.white} />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.actionBtn}>
-            <IconShare width={28} height={28} fill={colors.white} />
-          </TouchableOpacity>
+      {/* Mensaje cuando no hay propiedades en el filtro elegido */}
+      {itemHeight > 0 && propiedadesFiltradas.length === 0 && (
+        <View style={styles.sinResultados} pointerEvents="none">
+          <Text style={styles.sinResultadosTexto}>
+            {activeFilter === "ventas"
+              ? "Aún no hay propiedades en venta"
+              : "Aún no hay propiedades en alquiler"}
+          </Text>
         </View>
+      )}
 
-        {/* Info inferior */}
-        <View style={styles.info}>
-          <View style={styles.user}>
-            <Avatar uri={usuario.foto} size="sm" />
-            <View>
-              <Text style={styles.username}>{usuario.nombre}</Text>
-              <Text style={styles.userRole}>Propietario</Text>
-            </View>
-          </View>
-          <Pressable
-            onPress={() => router.push("/detail")}
-            style={({ pressed }) => [
-              styles.detailBtn,
-              pressed && styles.detailBtnPressed,
-            ]}
-          >
-            <View style={styles.detailCircle}>
-              <IconChevronRight width={12} height={12} fill={colors.white} />
-            </View>
-            <Text style={styles.detailBtnText}>Ver más</Text>
-          </Pressable>
-        </View>
-      </TouchableOpacity>
-
-      {/* Barra de progreso */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
-      </View>
-
-      {/* Filtros superiores */}
+      {/* Filtros superiores — encima del feed */}
       <View style={styles.filters}>
-        <TouchableOpacity onPress={() => setActiveFilter("ventas")}>
+        <TouchableOpacity onPress={() => cambiarFiltro("ventas")}>
           <Text
             style={[
               styles.filterBtn,
@@ -211,7 +477,7 @@ export default function FeedScreen() {
           </Text>
         </TouchableOpacity>
         <View style={styles.filterDivider} />
-        <TouchableOpacity onPress={() => setActiveFilter("alquiler")}>
+        <TouchableOpacity onPress={() => cambiarFiltro("alquiler")}>
           <Text
             style={[
               styles.filterBtn,
@@ -228,8 +494,7 @@ export default function FeedScreen() {
         <BottomNav />
       </View>
 
-      {/* ── Confeti de bienvenida (solo primer ingreso) ── */}
-      {/* Va al final del árbol y con zIndex alto para quedar SIEMPRE por encima del video ── */}
+      {/* Confeti de bienvenida */}
       {showConfetti && (
         <View style={styles.confettiOverlay} pointerEvents="none">
           <ConfettiCannon
@@ -249,20 +514,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-  },
-  progressContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: verticalScale(3),
-    backgroundColor: "rgba(255,255,255,0.35)",
-    zIndex: 30,
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: colors.primary,
-    borderRadius: 2,
   },
   filters: {
     position: "absolute",
@@ -290,26 +541,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 2,
   },
-  card: {
-    width: "100%",
-    height: "100%",
-    position: "absolute",
-    top: 0,
-    left: 0,
+  sinResultados: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
   },
-  video: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-  },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  sinResultadosTexto: {
+    fontSize: moderateScale(fontSizes.h4),
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+    fontFamily: "Poppins_400Regular",
   },
   playBtn: {
     position: "absolute",
@@ -326,12 +568,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: scale(20),
   },
-  action: {
-    alignItems: "center",
-    gap: 2,
-  },
   actionBtn: {
     padding: scale(4),
+  },
+  muteIconDisabled: {
+    opacity: 0.5,
   },
   info: {
     position: "absolute",
@@ -398,8 +639,6 @@ const styles = StyleSheet.create({
     gap: scale(32),
     zIndex: 20,
   },
-
-  // ── Overlay del confeti: cubre toda la pantalla y queda por encima de todo ──
   confettiOverlay: {
     position: "absolute",
     top: 0,
@@ -407,6 +646,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 999,
-    elevation: 999, // necesario en Android para respetar el zIndex
+    elevation: 999,
   },
 });
