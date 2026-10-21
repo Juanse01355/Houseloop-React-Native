@@ -4,8 +4,10 @@
 //     - Dueño:    botón rojo de eliminar (abre una hoja inferior con
 //                 "desliza para eliminar"), sin tarjeta de vendedor.
 //     - Visitante: botón de compartir + tarjeta del vendedor con
-//                  botón "Contactar Vendedor" (por correo).
+//                  botón de copiar enlace y "Contactar Vendedor"
+//                  (abre el formulario de contacto).
 //                  El avatar y el nombre del vendedor abren su perfil.
+//   Compartir y copiar enlace usan la util: src/utils/compartir.js
 //   Datos reales desde GET /propiedades/:id
 //
 //   Guarda este archivo en: src/app/detail.jsx
@@ -25,6 +27,7 @@ import {
   scale,
   spacing,
 } from "@/constants/theme-houseloop";
+import { compartirPropiedad, copiarEnlacePropiedad } from "@/utils/compartir";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -33,12 +36,10 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StatusBar,
   StyleSheet,
   Text,
@@ -447,47 +448,6 @@ export default function DetailScreen() {
     });
   };
 
-  const compartir = async () => {
-    try {
-      await Share.share({
-        message: `Mira esta propiedad en HouseLoop: ${propiedad.titulo} — ${formatearPrecio(propiedad.precio)}`,
-      });
-    } catch (err) {
-      console.warn("No se pudo compartir:", err);
-    }
-  };
-
-  // Botón de link del vendedor: copia el correo y avisa con un toast
-  const copiarCorreo = async () => {
-    const correo = propiedad.correo_propietario;
-
-    if (!correo) {
-      Toast.show({
-        type: "warning",
-        text1: "El vendedor no tiene correo registrado",
-      });
-      return;
-    }
-
-    try {
-      if (Platform.OS === "web" && navigator?.clipboard) {
-        await navigator.clipboard.writeText(correo);
-        Toast.show({
-          type: "copiado",
-          text1: "Enlace copiado",
-          position: "bottom",
-          bottomOffset: 80,
-          visibilityTime: 2000,
-        });
-      } else {
-        await Share.share({ message: correo });
-      }
-    } catch (err) {
-      console.warn("No se pudo copiar el correo:", err);
-      Toast.show({ type: "error", text1: "No se pudo copiar el correo" });
-    }
-  };
-
   const contactarVendedor = () => {
     // Si el dueño la marcó como no disponible, no se puede contactar
     if (propiedad.estado === "no_disponible") {
@@ -514,13 +474,21 @@ export default function DetailScreen() {
     });
   };
 
+  // Lleva a la sección Explorar (que ya tiene el mapa) centrada en esta
+  // propiedad. Se mandan el id y, si existen, las coordenadas.
   const verUbicacion = () => {
-    const consulta = encodeURIComponent(
-      `${direccionCompleta}, ${ciudadMostrada}`,
-    );
-    Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${consulta}`,
-    ).catch(() => avisar("No se pudo abrir el mapa"));
+    const lat = Number(propiedad.latitud ?? propiedad.lat);
+    const lng = Number(propiedad.longitud ?? propiedad.lng);
+    const tieneCoordenadas =
+      Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+
+    router.push({
+      pathname: "/explore",
+      params: {
+        propiedadId: String(propiedad.id_propiedad),
+        ...(tieneCoordenadas ? { lat: String(lat), lng: String(lng) } : {}),
+      },
+    });
   };
 
   return (
@@ -624,8 +592,13 @@ export default function DetailScreen() {
                 </Text>
               </View>
 
+              {/* Compartir: menú del sistema (celular / web) */}
               {!esDueno && (
-                <Pressable style={styles.shareBtn} onPress={compartir}>
+                <Pressable
+                  style={styles.shareBtn}
+                  onPress={() => compartirPropiedad(propiedad)}
+                  accessibilityLabel="Compartir propiedad"
+                >
                   <IconForward
                     width={scale(22)}
                     height={scale(22)}
@@ -777,8 +750,12 @@ export default function DetailScreen() {
                   </View>
                 </Pressable>
 
-                {/* El botón de link queda aparte: sigue copiando el correo */}
-                <Pressable style={styles.linkBtn} onPress={copiarCorreo}>
+                {/* Botón de link: copia el enlace de la propiedad */}
+                <Pressable
+                  style={styles.linkBtn}
+                  onPress={() => copiarEnlacePropiedad(propiedad)}
+                  accessibilityLabel="Copiar enlace de la propiedad"
+                >
                   <IconLink
                     width={scale(20)}
                     height={scale(20)}

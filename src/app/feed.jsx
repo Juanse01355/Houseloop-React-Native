@@ -10,12 +10,14 @@ import {
   spacing,
   verticalScale,
 } from "@/constants/theme-houseloop";
+import { compartirPropiedad } from "@/utils/compartir";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   FlatList,
   Pressable,
   StatusBar,
@@ -45,6 +47,10 @@ import { BASE_URL } from "@/config/api";
 // pantalla pero recortando los lados.
 const VIDEO_FIT = "contain";
 
+// Cada cuántos segundos se actualiza la barra de progreso del video
+// (más bajo = más fluida, pero trabaja un poco más)
+const INTERVALO_PROGRESO = 0.1;
+
 // ══════════════════════════════════════════════════════════
 // COMPONENTE: FeedCard
 // Cada card del feed — un video con info de la propiedad
@@ -68,6 +74,10 @@ function FeedCard({
 }) {
   const [isPaused, setIsPaused] = useState(false);
 
+  // Progreso del video (0 a 1) para la barra de arriba. Es un Animated.Value
+  // para actualizar la barra sin volver a dibujar toda la card cada vez.
+  const progreso = useRef(new Animated.Value(0)).current;
+
   // propiedad.video ya viene como URL completa desde el backend
   const videoUrl = propiedad.video || null;
 
@@ -84,6 +94,8 @@ function FeedCard({
     p.loop = true;
     // Arranca silenciado: los navegadores bloquean el autoplay CON sonido
     p.muted = true;
+    // Cada cuánto avisa el reproductor el tiempo actual (para la barra)
+    p.timeUpdateEventInterval = INTERVALO_PROGRESO;
   });
 
   // ── Controla play/pause/mute según si esta card está activa ──
@@ -94,6 +106,7 @@ function FeedCard({
         player.pause();
         player.muted = true;
         player.currentTime = 0;
+        progreso.setValue(0);
         setIsPaused(false);
         return;
       }
@@ -110,7 +123,23 @@ function FeedCard({
       // (política de autoplay) — no rompemos la pantalla.
       console.warn("No se pudo controlar la reproducción:", error);
     }
-  }, [isActive, isPaused, soundOn, player]);
+  }, [isActive, isPaused, soundOn, player, progreso]);
+
+  // ── Barra de progreso: sigue el tiempo del video ──
+  // Solo escucha en la card activa. Al llegar al final el video da la
+  // vuelta (loop) y la barra vuelve a empezar sola.
+  useEffect(() => {
+    if (!isActive || !videoUrl) return;
+
+    const suscripcion = player.addListener("timeUpdate", ({ currentTime }) => {
+      const duracion = player.duration;
+      if (duracion > 0) {
+        progreso.setValue(Math.min(currentTime / duracion, 1));
+      }
+    });
+
+    return () => suscripcion.remove();
+  }, [isActive, videoUrl, player, progreso]);
 
   // ── Cuenta una reproducción (como TikTok) ──
   // Solo se registra si el video se queda activo 1.5 s, así no se cuentan
@@ -200,6 +229,23 @@ function FeedCard({
         pointerEvents="none"
       />
 
+      {/* Barra de tiempo del video (arriba de Ventas / Alquiler) */}
+      {videoUrl ? (
+        <View style={styles.progressTrack} pointerEvents="none">
+          <Animated.View
+            style={[
+              styles.progressFill,
+              {
+                width: progreso.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["0%", "100%"],
+                }),
+              },
+            ]}
+          />
+        </View>
+      ) : null}
+
       {/* Botón play — aparece solo cuando está pausado */}
       {isPaused && (
         <View style={styles.playBtn} pointerEvents="none">
@@ -223,7 +269,15 @@ function FeedCard({
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.actionBtn}>
+        {/* Compartir: menú del sistema (celular) o copia el enlace (web en computador) */}
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            compartirPropiedad(propiedad);
+          }}
+          accessibilityLabel="Compartir propiedad"
+        >
           <IconShare width={28} height={28} fill={colors.white} />
         </TouchableOpacity>
 
@@ -552,6 +606,22 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.7)",
     textAlign: "center",
     fontFamily: "Poppins_400Regular",
+  },
+  // ── Barra de tiempo del video ──
+  // Una línea delgada pegada al borde de arriba de la card.
+  // Para cambiar el grosor, ajusta "height".
+  progressTrack: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: scale(3),
+    backgroundColor: "rgba(255,255,255,0.25)",
+    zIndex: 15,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
   },
   playBtn: {
     position: "absolute",
