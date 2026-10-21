@@ -14,6 +14,10 @@
    Se piden: teléfono principal, teléfono opcional, motivo,
    cómo prefiere que lo contacten, horario (opcional) y mensaje.
 
+   Al enviar, aparece una hoja inferior (bottom sheet) con un
+   check, el mensaje de confirmación y un botón "Ok". Al pulsar
+   "Ok" (o tocar fuera de la hoja) se vuelve a la pantalla anterior.
+
    PASO 1: el formulario y sus validaciones.
    PASO 2 (pendiente): enviar los datos al backend y por correo.
 
@@ -64,6 +68,9 @@ import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 
 const MAX_MENSAJE = 300;
+
+// Verde de la hoja de éxito (el mismo de "Disponible" en detail.jsx)
+const COLOR_EXITO = '#4CAF50';
 
 // Opciones de los selectores
 const FORMAS_CONTACTO = ['WhatsApp', 'Llamada', 'Correo'];
@@ -164,7 +171,7 @@ const primerValor = (v) => (Array.isArray(v) ? v[0] : v);
 
 // Vuelve a la pantalla anterior; si no hay una, manda al feed
 // (TopNav hace lo mismo en el header; esta función se usa en el
-// botón secundario, el estado de error y el modal de éxito)
+// botón secundario, el estado de error y la hoja de éxito)
 const volver = () => {
   if (router.canGoBack()) {
     router.back();
@@ -215,6 +222,40 @@ function TerminosSheet({ visible, onClose, onAceptar }) {
 
           <View style={styles.terminosBtn}>
             <ButtonPrimary text="Aceptar" onPress={onAceptar} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Hoja inferior de confirmación ──
+// Mismo estilo que la hoja "Cambiar disponibilidad" de detail.jsx:
+// círculo suave con ícono, título, subtítulo y botón.
+function ExitoSheet({ visible, onClose, destinatario }) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.exitoOverlay}>
+        {/* Fondo oscuro: tocarlo cierra la hoja */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+
+        <View style={[styles.exitoSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+          <View style={styles.exitoHandle} />
+
+          <View style={[styles.exitoBadge, { backgroundColor: COLOR_EXITO + '33' }]}>
+            <MaterialIcons name="check" size={scale(28)} color={COLOR_EXITO} />
+          </View>
+
+          <Text style={styles.exitoTitulo}>¡Información enviada!</Text>
+          <Text style={styles.exitoSubtitulo}>
+            Tu información se envió correctamente. Cuando {destinatario} la vea, se pondrá en
+            contacto contigo.
+          </Text>
+
+          <View style={styles.exitoBoton}>
+            <ButtonPrimary text="Ok" onPress={onClose} />
           </View>
         </View>
       </View>
@@ -277,11 +318,19 @@ export default function ContactScreen() {
   const [mensaje, setMensaje] = useState('');
   const ultimoSugerido = useRef('');
 
+  // Para llevar al usuario al primer campo con error al pulsar "Enviar"
+  const scrollRef = useRef(null);
+  const posiciones = useRef({});
+  const registrar = (clave) => (e) => {
+    posiciones.current[clave] = e.nativeEvent.layout.y;
+  };
+
   const [intentoEnvio, setIntentoEnvio] = useState(false);
   const [mensajeFoco, setMensajeFoco] = useState(false);
   const [terminos, setTerminos] = useState(false);
   const [verTerminos, setVerTerminos] = useState(false);
   const [verVideo, setVerVideo] = useState(false);
+  const [verExito, setVerExito] = useState(false);
 
   // ── Carga la propiedad (si hay) y los datos del usuario logueado ──
   useEffect(() => {
@@ -433,7 +482,24 @@ export default function ContactScreen() {
   const enviar = () => {
     setIntentoEnvio(true);
     if (bloqueado) return;
-    if (Object.keys(errores).length > 0) return;
+    if (Object.keys(errores).length > 0) {
+      // Llevamos la pantalla al primer campo con error (si no, el error
+      // queda arriba, fuera de la vista, y parece que "no pasa nada")
+      const orden = [
+        ['telefono', 'datos'],
+        ['telefono2', 'datos'],
+        ['motivo', 'consulta'],
+        ['mensaje', 'consulta'],
+        ['terminos', 'consulta'],
+      ];
+      const primero = orden.find(([campo]) => errores[campo]);
+      if (primero) {
+        const [campo, seccion] = primero;
+        const y = (posiciones.current[seccion] || 0) + (posiciones.current[campo] || 0);
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - spacing.lg), animated: true });
+      }
+      return;
+    }
 
     // TODO (paso 2): enviar estos datos al backend para guardarlos y avisar al destinatario:
     // {
@@ -442,8 +508,14 @@ export default function ContactScreen() {
     //   telefono, telefono2, motivo, formaContacto, horario, mensaje,
     // }
 
-    // Volvemos a la pantalla anterior (detail o user-profile) y, cuando
-    // termina la transición, mostramos el toast de éxito allí
+    // Mostramos la hoja de confirmación; al pulsar "Ok" se vuelve atrás
+    setVerExito(true);
+  };
+
+  // Cierra la hoja de éxito y regresa a la pantalla anterior
+  // y, cuando termina la transición, muestra el toast superior allí
+  const cerrarExito = () => {
+    setVerExito(false);
     volver();
     setTimeout(() => {
       Toast.show({
@@ -463,6 +535,7 @@ export default function ContactScreen() {
       <TopNav />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.content}
         contentContainerStyle={styles.contentInner}
         showsVerticalScrollIndicator={false}
@@ -552,7 +625,7 @@ export default function ContactScreen() {
         )}
 
         {/* ── SECCIÓN TUS DATOS ── */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={registrar('datos')}>
           <View style={styles.sectionTitleRow}>
             <IconAssignment
               width={scale(22)}
@@ -564,7 +637,7 @@ export default function ContactScreen() {
           </View>
 
           {/* Teléfono principal */}
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={registrar('telefono')}>
             <CampoTelefono
               etiqueta="Teléfono principal"
               value={telefono}
@@ -574,7 +647,7 @@ export default function ContactScreen() {
           </View>
 
           {/* Teléfono secundario */}
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={registrar('telefono2')}>
             <CampoTelefono
               etiqueta="Teléfono secundario (opcional)"
               value={telefono2}
@@ -587,7 +660,7 @@ export default function ContactScreen() {
         </View>
 
         {/* ── SECCIÓN TU CONSULTA ── */}
-        <View style={[styles.section, styles.sectionConsulta]}>
+        <View style={[styles.section, styles.sectionConsulta]} onLayout={registrar('consulta')}>
           <View style={styles.sectionTitleRow}>
             <IconMessage
               width={scale(22)}
@@ -599,7 +672,7 @@ export default function ContactScreen() {
           </View>
 
           {/* Motivo */}
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={registrar('motivo')}>
             <Dropdown
               label="Motivo de tu consulta"
               titulo="Motivo de tu consulta"
@@ -634,7 +707,7 @@ export default function ContactScreen() {
           </View>
 
           {/* Mensaje */}
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={registrar('mensaje')}>
             <View style={[styles.textareaGroup, mensajeFoco && styles.textareaGroupFoco]}>
               <Text style={styles.textareaLabel}>Mensaje</Text>
               <TextInput
@@ -660,7 +733,7 @@ export default function ContactScreen() {
           </Text>
 
           {/* Términos y condiciones */}
-          <View style={styles.field}>
+          <View style={styles.field} onLayout={registrar('terminos')}>
             <View style={styles.terminosFila}>
               <Pressable
                 onPress={() => setTerminos(!terminos)}
@@ -685,7 +758,10 @@ export default function ContactScreen() {
 
         {/* ── BOTONES ── */}
         <View style={styles.actions}>
-          <ButtonPrimary text="Enviar" onPress={enviar} disabled={bloqueado || !terminos} />
+          {intentoEnvio && Object.keys(errores).length > 0 && !bloqueado ? (
+            <Text style={styles.error}>Revisa los campos marcados antes de enviar.</Text>
+          ) : null}
+          <ButtonPrimary text="Enviar" onPress={enviar} disabled={bloqueado} />
           <Pressable
             style={({ pressed }) => [styles.btnVolver, pressed && styles.btnVolverPresionado]}
             onPress={volver}
@@ -704,6 +780,13 @@ export default function ContactScreen() {
           setTerminos(true);
           setVerTerminos(false);
         }}
+      />
+
+      {/* ── Hoja de confirmación al enviar ── */}
+      <ExitoSheet
+        visible={verExito}
+        onClose={cerrarExito}
+        destinatario={modoPerfil ? nombreDestino : 'el propietario'}
       />
 
       {/* ── Video de la propiedad ── */}
@@ -1030,4 +1113,52 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
 
+  // ── Hoja de éxito (mismo estilo que la de disponibilidad en detail.jsx) ──
+  exitoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  exitoSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    alignItems: 'center',
+    borderTopWidth: 0,
+  },
+  exitoHandle: {
+    width: scale(40),
+    height: scale(4),
+    borderRadius: radii.full,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  exitoBadge: {
+    width: scale(56),
+    height: scale(56),
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  exitoTitulo: {
+    fontSize: fontSizes.h3,
+    fontWeight: '700',
+    color: colors.titles,
+    fontFamily: 'Poppins_700Bold',
+    textAlign: 'center',
+  },
+  exitoSubtitulo: {
+    fontSize: fontSizes.body2,
+    color: colors.typography,
+    fontFamily: 'Poppins_400Regular',
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  exitoBoton: {
+    alignSelf: 'stretch',
+    marginTop: spacing.lg,
+  },
 });
