@@ -95,9 +95,14 @@ export const layout = {
 //   ESCALA RESPONSIVA
 //   Adapta los tamaños a cualquier pantalla
 // ============================================================
-import { Dimensions, PixelRatio } from 'react-native';
+import { Dimensions, PixelRatio, Platform } from 'react-native';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: RAW_WIDTH, height: RAW_HEIGHT } = Dimensions.get('window');
+
+// En web (escritorio) la ventana es enorme: se limita a un tamaño de celular
+// para que los componentes no se agranden. En el celular real no cambia nada.
+const SCREEN_WIDTH  = Platform.OS === 'web' ? Math.min(RAW_WIDTH, 430)  : RAW_WIDTH;
+const SCREEN_HEIGHT = Platform.OS === 'web' ? Math.min(RAW_HEIGHT, 932) : RAW_HEIGHT;
 
 // Base de diseño (iPhone 14 / Figma móvil estándar)
 const BASE_WIDTH  = 390;
