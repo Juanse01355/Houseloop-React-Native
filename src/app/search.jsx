@@ -3,6 +3,17 @@
 //   Buscador + filtros + fila de chips de ciudad + grid con
 //   todas las propiedades registradas (por ahora, San Juan de Pasto).
 //   Las propiedades "No disponible" no aparecen en la búsqueda.
+//
+//   El buscador encuentra propiedades por:
+//     - Texto: título, descripción, barrio o tipo de inmueble
+//       (ej. "casa", "apartamento", "miraflores"). Ignora tildes
+//       y mayúsculas.
+//     - Precio: escribiendo el número (ej. "350000000" o
+//       "$350.000.000"; también "350" encuentra los que empiezan
+//       por 350) o en millones (ej. "350 millones" o "350m",
+//       con un margen de ±5%).
+//   El filtro del Bottom Sheet permite elegir el precio, el tipo
+//   de inmueble y la disponibilidad (Disponible o En negociación).
 // ============================================================
 import BottomNav from '@/components/ui/BottomNav';
 import Chip from '@/components/ui/Chip';
@@ -34,6 +45,42 @@ const CIUDADES = [
   'La Union',
   'El Tambo',
 ];
+
+// ══════════════════════════════════════════════════════════
+// HELPERS DE BÚSQUEDA
+// ══════════════════════════════════════════════════════════
+
+// Pasa a minúsculas y quita las tildes: "Apartaménto" → "apartamento"
+const normalizar = (texto) =>
+  String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+// ¿Lo que escribió el usuario parece un precio? (solo números y signos
+// de dinero: "350000000", "$350.000.000", "350'000.000", o "350 millones")
+const REGEX_MILLONES = /^\$?\s*(\d+(?:[.,]\d+)?)\s*(?:m|mm|millon|millones)$/;
+const REGEX_NUMERICO = /^[\d\s$.,'’]+$/;
+
+const pareceBusquedaDePrecio = (consulta) =>
+  REGEX_MILLONES.test(consulta) || REGEX_NUMERICO.test(consulta);
+
+// ¿El precio de la propiedad coincide con lo que se escribió?
+//   - "350 millones" / "350m": precio dentro de ±5% de 350.000.000
+//   - "350" o "350.000.000": el precio empieza por esos dígitos
+function coincidePrecio(precio, consulta) {
+  const valorPropiedad = Math.round(Number(precio) || 0);
+  if (!valorPropiedad) return false;
+
+  const enMillones = consulta.match(REGEX_MILLONES);
+  if (enMillones) {
+    const objetivo = parseFloat(enMillones[1].replace(',', '.')) * 1000000;
+    return Math.abs(valorPropiedad - objetivo) <= objetivo * 0.05;
+  }
+
+  const digitos = consulta.replace(/\D/g, '');
+  return digitos.length > 0 && String(valorPropiedad).startsWith(digitos);
+}
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -144,12 +191,21 @@ export default function SearchScreen() {
 
   if (esCiudadPrincipal) {
     if (busqueda.trim()) {
-      const q = busqueda.trim().toLowerCase();
-      propiedadesFiltradas = propiedadesFiltradas.filter((p) =>
-        [p.titulo, p.descripcion, p.barrio, p.tipo_inmueble]
-          .filter(Boolean)
-          .some((campo) => campo.toLowerCase().includes(q)),
-      );
+      const consulta = normalizar(busqueda).trim();
+
+      if (pareceBusquedaDePrecio(consulta)) {
+        // Escribió un número: se busca por precio
+        propiedadesFiltradas = propiedadesFiltradas.filter((p) =>
+          coincidePrecio(p.precio, consulta),
+        );
+      } else {
+        // Escribió palabras: se busca por texto (incluye el tipo de inmueble)
+        propiedadesFiltradas = propiedadesFiltradas.filter((p) =>
+          [p.titulo, p.descripcion, p.barrio, p.tipo_inmueble]
+            .filter(Boolean)
+            .some((campo) => normalizar(campo).includes(consulta)),
+        );
+      }
     }
 
     if (filtros.precioMin) {
@@ -167,19 +223,12 @@ export default function SearchScreen() {
         (p) => p.tipo_inmueble === filtros.tipoInmueble,
       );
     }
-    if (filtros.habitaciones > 0) {
+    // Disponibilidad: "disponible" o "en_negociacion".
+    // Si una propiedad no trae estado, se considera disponible
+    // (igual que en la pantalla de detalle).
+    if (filtros.estado) {
       propiedadesFiltradas = propiedadesFiltradas.filter(
-        (p) => Number(p.habitaciones) >= filtros.habitaciones,
-      );
-    }
-    if (filtros.banos > 0) {
-      propiedadesFiltradas = propiedadesFiltradas.filter(
-        (p) => Number(p.banos) >= filtros.banos,
-      );
-    }
-    if (filtros.barrio) {
-      propiedadesFiltradas = propiedadesFiltradas.filter(
-        (p) => p.barrio === filtros.barrio,
+        (p) => (p.estado || 'disponible') === filtros.estado,
       );
     }
   }
@@ -258,7 +307,6 @@ export default function SearchScreen() {
       <FilterBottomSheet
         visible={filtrosVisible}
         onClose={() => setFiltrosVisible(false)}
-        propiedades={propiedades}
         initialFilters={filtros}
         onApply={setFiltros}
       />
@@ -340,4 +388,4 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
-});
+})

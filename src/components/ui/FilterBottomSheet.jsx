@@ -1,8 +1,8 @@
 // ============================================================
 //   FILTER BOTTOM SHEET — Hoja inferior con filtros de búsqueda
 //   Modo claro, mismo estilo que Input.jsx. Precio (min/max con
-//   Input + rangos rápidos), tipo de inmueble y barrio (dropdown
-//   con ícono icon-arrow-down).
+//   Input + rangos rápidos), tipo de inmueble y disponibilidad
+//   (dropdown con ícono icon-arrow-down).
 // ============================================================
 import { useEffect, useState } from "react";
 import {
@@ -25,6 +25,12 @@ import IconArrowDown from "../../../assets/icons/icon-arrow-down.svg";
 
 const TIPOS_INMUEBLE = ["apartamento", "casa", "local", "lote"];
 
+// value = lo que guarda el filtro (igual que p.estado en la BD)
+const DISPONIBILIDADES = [
+  { value: "disponible", label: "Disponible" },
+  { value: "en_negociacion", label: "En negociación" },
+];
+
 const RANGOS_PRECIO = [
   { label: "Hasta 100M", min: 0, max: 100000000 },
   { label: "100M - 300M", min: 100000000, max: 300000000 },
@@ -35,32 +41,30 @@ export const FILTROS_VACIOS = {
   precioMin: "",
   precioMax: "",
   tipoInmueble: null,
-  barrio: null,
+  estado: null,
 };
 
 export default function FilterBottomSheet({
   visible,
   onClose,
-  propiedades,
   initialFilters,
   onApply,
 }) {
   const [filtros, setFiltros] = useState(initialFilters || FILTROS_VACIOS);
   const [tipoAbierto, setTipoAbierto] = useState(false);
-  const [barrioAbierto, setBarrioAbierto] = useState(false);
+  const [estadoAbierto, setEstadoAbierto] = useState(false);
 
   // Cada vez que se abre el sheet, partimos de los filtros ya aplicados
   useEffect(() => {
     if (visible) {
       setFiltros(initialFilters || FILTROS_VACIOS);
       setTipoAbierto(false);
-      setBarrioAbierto(false);
+      setEstadoAbierto(false);
     }
   }, [visible]);
 
-  // Barrios únicos a partir de las propiedades cargadas
-  const barrios = Array.from(
-    new Set(propiedades.map((p) => p.barrio).filter(Boolean)),
+  const estadoSeleccionado = DISPONIBILIDADES.find(
+    (d) => d.value === filtros.estado,
   );
 
   const aplicarRangoRapido = (rango) => {
@@ -170,48 +174,43 @@ export default function FilterBottomSheet({
               </View>
             )}
 
-            {/* ── Barrio ── */}
-            <Text style={styles.sectionLabel}>Barrio</Text>
+            {/* ── Disponibilidad ── */}
+            <Text style={styles.sectionLabel}>Disponibilidad</Text>
             <Pressable
               style={styles.selectField}
-              onPress={() => setBarrioAbierto(!barrioAbierto)}
+              onPress={() => setEstadoAbierto(!estadoAbierto)}
             >
               <Text style={styles.selectFieldText}>
-                {filtros.barrio || "Cualquiera"}
+                {estadoSeleccionado?.label || "Cualquiera"}
               </Text>
               <View style={styles.selectIconWrapper}>
                 <IconArrowDown width={16} height={16} fill={colors.typography} />
               </View>
             </Pressable>
 
-            {barrioAbierto && (
+            {estadoAbierto && (
               <View style={styles.optionsList}>
                 <Pressable
                   style={styles.optionItem}
                   onPress={() => {
-                    setFiltros((prev) => ({ ...prev, barrio: null }));
-                    setBarrioAbierto(false);
+                    setFiltros((prev) => ({ ...prev, estado: null }));
+                    setEstadoAbierto(false);
                   }}
                 >
                   <Text style={styles.optionText}>Cualquiera</Text>
                 </Pressable>
-                {barrios.map((barrio) => (
+                {DISPONIBILIDADES.map((d) => (
                   <Pressable
-                    key={barrio}
+                    key={d.value}
                     style={styles.optionItem}
                     onPress={() => {
-                      setFiltros((prev) => ({ ...prev, barrio }));
-                      setBarrioAbierto(false);
+                      setFiltros((prev) => ({ ...prev, estado: d.value }));
+                      setEstadoAbierto(false);
                     }}
                   >
-                    <Text style={styles.optionText}>{barrio}</Text>
+                    <Text style={styles.optionText}>{d.label}</Text>
                   </Pressable>
                 ))}
-                {barrios.length === 0 && (
-                  <Text style={styles.optionEmptyText}>
-                    No hay barrios registrados todavía.
-                  </Text>
-                )}
               </View>
             )}
           </ScrollView>
@@ -330,13 +329,6 @@ const styles = StyleSheet.create({
     color: colors.titles,
     fontFamily: "Poppins_400Regular",
     textTransform: "capitalize",
-  },
-  optionEmptyText: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: fontSizes.body2,
-    color: colors.typography,
-    fontFamily: "Poppins_400Regular",
   },
   searchBtn: {
     height: 58,
