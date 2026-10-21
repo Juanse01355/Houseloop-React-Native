@@ -1,68 +1,191 @@
 // ============================================================
-//   PROPERTY MAP CARD — Tarjeta flotante que aparece al tocar
-//   un pin del mapa. Muestra imagen, precio, dirección y specs.
+//   PROPERTY MAP CARD — Tarjeta flotante que aparece al tocar una
+//   propiedad en el mapa (ExploreScreen).
+//
+//   Diseño: imagen con etiqueta "Venta"/"Arriendo" y botón de play,
+//   precio, dirección, habitaciones / baños / área y "Ver detalles".
+//
+//   Props:
+//     propiedad     objeto de la propiedad (viene del feed)
+//     onClose       cierra la tarjeta
+//     onVerDetalles se llama con la propiedad al tocar "Ver detalles"
+//
+//   Guarda este archivo en: src/components/ui/PropertyMapCard.jsx
 // ============================================================
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { createElement, useState } from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { ButtonPrimary } from "@/components/ui/Button";
 import {
   colors,
   fontSizes,
-  fontWeights,
-  moderateScale,
   radii,
-  scale,
   spacing,
-  verticalScale,
 } from "@/constants/theme-houseloop";
 
-// Ícono de cierre
-import IconClose from "../../../assets/icons/icon-close.svg";
+// 24000000 -> $24'000.000   |   350000 -> $350.000
+const formatearPrecio = (valor) => {
+  const n = Math.round(Number(valor) || 0);
+  const grupos = String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".").split(".");
+  if (n >= 1000000 && grupos.length >= 3) {
+    // el separador entre millones y miles lleva apóstrofo: 24'000.000
+    const millones = grupos.slice(0, grupos.length - 2).join(".");
+    return `$${millones}'${grupos.slice(-2).join(".")}`;
+  }
+  return `$${grupos.join(".")}`;
+};
 
-function formatearPrecio(precio) {
-  const numero = Number(precio) || 0;
-  return `$${numero.toLocaleString("es-CO")}`;
+const etiquetaOperacion = (tipo) =>
+  tipo === "arriendo" ? "Arriendo" : "Venta";
+
+// Respaldo cuando la propiedad no tiene miniatura: muestra el primer
+// cuadro del VIDEO, quieto y sin sonido (no se reproduce).
+function PreviewVideo({ uri }) {
+  // Navegador: expo-video deja el <video> con su tamaño natural y desborda la
+  // card. Se usa un <video> HTML normal con tamaño fijo y object-fit: cover.
+  if (Platform.OS === "web") {
+    return createElement(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          pointerEvents: "none",
+        },
+      },
+      createElement("video", {
+        // #t=0.1 hace que el navegador muestre un cuadro del video sin reproducirlo
+        src: `${uri}#t=0.1`,
+        muted: true,
+        playsInline: true,
+        preload: "metadata",
+        style: {
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        },
+      }),
+    );
+  }
+
+  return <PreviewVideoNativo uri={uri} />;
 }
 
-export default function PropertyMapCard({ propiedad, onVerDetalles, onClose }) {
-  if (!propiedad) return null;
+// Celular: primer cuadro con expo-video
+function PreviewVideoNativo({ uri }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+    p.loop = false;
+    p.pause();
+    p.currentTime = 0.1; // evita el cuadro negro del instante 0
+  });
+
+  return (
+    // El contenedor tiene tamaño fijo y recorta (overflow hidden): el video se
+    // ajusta a ese recuadro con "cover" y nunca cambia el tamaño de la card.
+    <View style={styles.previewContenedor} pointerEvents="none">
+      <VideoView
+        style={styles.previewVideo}
+        player={player}
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+        contentFit="cover"
+      />
+    </View>
+  );
+}
+
+export default function PropertyMapCard({ propiedad, onClose, onVerDetalles }) {
+  const direccion = [propiedad.direccion, propiedad.barrio]
+    .filter(Boolean)
+    .join(", ");
+  const area = Number(propiedad.area_m2);
+
+  // Vista previa del video: primero la miniatura generada del video;
+  // si no existe o no carga, el primer cuadro del propio video.
+  const [miniaturaFalla, setMiniaturaFalla] = useState(false);
+  const usarMiniatura = !!propiedad.miniatura && !miniaturaFalla;
 
   return (
     <View style={styles.card}>
-      <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={10}>
-        <IconClose width={12} height={12} fill={colors.white} />
-      </Pressable>
+      {/* ── Imagen / video con etiqueta y play ── */}
+      <Pressable
+        style={styles.media}
+        onPress={() => onVerDetalles(propiedad)}
+        accessibilityLabel="Ver la propiedad"
+      >
+        {usarMiniatura ? (
+          <Image
+            source={{ uri: propiedad.miniatura }}
+            style={styles.previewVideo}
+            resizeMode="cover"
+            onError={() => setMiniaturaFalla(true)}
+          />
+        ) : propiedad.video ? (
+          <PreviewVideo uri={propiedad.video} />
+        ) : null}
 
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Venta</Text>
-      </View>
-
-      {propiedad.media_url ? (
-        <Image
-          source={{ uri: propiedad.media_url }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.image} />
-      )}
-
-      <View style={styles.info}>
-        <Text style={styles.precio}>{formatearPrecio(propiedad.precio)}</Text>
-        <Text style={styles.direccion} numberOfLines={1}>
-          {propiedad.direccion}
-        </Text>
-
-        <View style={styles.specsRow}>
-          <Text style={styles.specText}>{propiedad.habitaciones} Habitaciones</Text>
-          <Text style={styles.specDot}>·</Text>
-          <Text style={styles.specText}>{propiedad.banos} Baños</Text>
+        <View style={styles.badge}>
+          <Text style={styles.badgeTexto}>
+            {etiquetaOperacion(propiedad.tipo_operacion)}
+          </Text>
         </View>
 
+        {propiedad.video ? (
+          <MaterialIcons name="play-arrow" size={64} color="#fff" style={styles.play} />
+        ) : null}
+
         <Pressable
-          style={styles.detalleBtn}
-          onPress={() => onVerDetalles(propiedad)}
+          style={styles.cerrar}
+          onPress={onClose}
+          hitSlop={8}
+          accessibilityLabel="Cerrar"
         >
-          <Text style={styles.detalleBtnText}>Ver detalles</Text>
+          <MaterialIcons name="close" size={18} color="#fff" />
         </Pressable>
+      </Pressable>
+
+      {/* ── Datos ── */}
+      <View style={styles.cuerpo}>
+        <Text style={styles.precio}>{formatearPrecio(propiedad.precio)}</Text>
+        {direccion ? (
+          <Text style={styles.direccion} numberOfLines={1}>
+            {direccion}
+          </Text>
+        ) : null}
+
+        <View style={styles.datos}>
+          <View style={styles.dato}>
+            <MaterialIcons name="bed" size={22} color={colors.typography} />
+            <Text style={styles.datoTexto}>
+              {Number(propiedad.habitaciones) || 0} Habitaciones
+            </Text>
+          </View>
+          <View style={styles.dato}>
+            <MaterialIcons name="bathtub" size={20} color={colors.typography} />
+            <Text style={styles.datoTexto}>
+              {Number(propiedad.banos) || 0} Baños
+            </Text>
+          </View>
+          {area > 0 ? (
+            <View style={styles.dato}>
+              <MaterialIcons name="square-foot" size={20} color={colors.typography} />
+              <Text style={styles.datoTexto}>{area} m²</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.divisor} />
+
+        <ButtonPrimary text="Ver detalles" onPress={() => onVerDetalles(propiedad)} />
       </View>
     </View>
   );
@@ -70,99 +193,99 @@ export default function PropertyMapCard({ propiedad, onVerDetalles, onClose }) {
 
 const styles = StyleSheet.create({
   card: {
-    width: scale(260),
+    width: "92%",
+    maxWidth: 420,
     backgroundColor: colors.white,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    elevation: 8,
   },
-
-  closeBtn: {
+  media: {
+    height: 190,
+    backgroundColor: "#1b1b1b",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    position: "relative",
+  },
+  previewContenedor: {
     position: "absolute",
-    top: spacing.xs,
-    right: spacing.xs,
-    zIndex: 3,
-    width: moderateScale(24),
-    height: moderateScale(24),
-    borderRadius: moderateScale(12),
-    backgroundColor: "rgba(0,0,0,0.5)",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: "hidden",
+  },
+  previewVideo: {
+    width: "100%",
+    height: "100%",
+  },
+  badge: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.full,
+  },
+  badgeTexto: {
+    color: colors.white,
+    fontSize: fontSizes.body3,
+    fontFamily: "Poppins_700Bold",
+  },
+  play: {
+    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowRadius: 8,
+  },
+  cerrar: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.45)",
     alignItems: "center",
     justifyContent: "center",
   },
-
-  badge: {
-    position: "absolute",
-    top: spacing.xs,
-    left: spacing.xs,
-    zIndex: 3,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
+  cuerpo: {
+    padding: spacing.md,
+    gap: spacing.xs,
   },
-
-  badgeText: {
-    color: colors.white,
-    fontSize: fontSizes.overline,
-    fontFamily: "Poppins_700Bold",
-  },
-
-  image: {
-    width: "100%",
-    height: verticalScale(140),
-    backgroundColor: colors.divider,
-  },
-
-  info: {
-    padding: spacing.sm,
-    gap: 4,
-  },
-
   precio: {
-    fontSize: fontSizes.h4,
-    fontWeight: fontWeights.semibold,
-    color: colors.titles,
+    fontSize: fontSizes.h2,
+    color: colors.primary,
     fontFamily: "Poppins_700Bold",
   },
-
   direccion: {
     fontSize: fontSizes.body2,
     color: colors.typography,
     fontFamily: "Poppins_400Regular",
   },
-
-  specsRow: {
+  datos: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  dato: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 2,
+    gap: spacing.xs,
   },
-
-  specText: {
-    fontSize: fontSizes.overline,
+  datoTexto: {
+    fontSize: fontSizes.body3,
     color: colors.typography,
     fontFamily: "Poppins_400Regular",
   },
-
-  specDot: {
-    color: colors.typography,
-  },
-
-  detalleBtn: {
-    marginTop: spacing.xs,
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: verticalScale(10),
-    alignItems: "center",
-  },
-
-  detalleBtnText: {
-    color: colors.white,
-    fontSize: fontSizes.body2,
-    fontFamily: "Poppins_700Bold",
+  divisor: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: spacing.sm,
   },
 });

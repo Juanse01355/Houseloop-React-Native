@@ -45,6 +45,7 @@ import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import TopNav from '@/components/ui/TopNav';
+import UbicacionPicker from '@/components/map/UbicacionPicker';
 import { BASE_URL } from "@/config/api"; // trae la URL de tu backend
 import { mostrarToast } from '@/config/toast-config';
 import Toast from 'react-native-toast-message';
@@ -235,6 +236,10 @@ export default function PublishScreen() {
   const [direccion, setDireccion] = useState('');
   const [barrio, setBarrio] = useState('');
 
+  // ── Ubicación exacta marcada en el mapa ──
+  const [coords, setCoords] = useState(null); // { latitude, longitude } o null
+  const [showMapa, setShowMapa] = useState(false); // abre / cierra el mapa para marcar el punto
+
   // ── Términos y condiciones ──
   const [terms, setTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false); // abre / cierra la hoja de términos
@@ -247,7 +252,8 @@ export default function PublishScreen() {
     area.trim() !== '' &&
     direccion.trim() !== '' &&
     barrio.trim() !== '' &&
-    descripcion.trim() !== '';
+    descripcion.trim() !== '' &&
+    coords !== null;
 
   const puedePublicar = camposCompletos && terms && !enviando && !cargando;
 
@@ -279,6 +285,9 @@ export default function PublishScreen() {
         setCiudad(p.ciudad || 'pasto');
         setDireccion(p.direccion || '');
         setBarrio(p.barrio || '');
+        if (p.latitud != null && p.longitud != null) {
+          setCoords({ latitude: Number(p.latitud), longitude: Number(p.longitud) });
+        }
         setVideoActual(p.video || null);
         setFotosActuales(Array.isArray(p.fotos) ? p.fotos : []);
         setTerms(true); // ya los aceptó al publicar
@@ -414,6 +423,8 @@ export default function PublishScreen() {
         ciudad: ciudad || 'pasto',
         direccion,
         barrio,
+        latitud: coords?.latitude,
+        longitud: coords?.longitude,
         titulo: `${tipoInmueble.toUpperCase()} en ${tipoOferta}`,
         descripcion,
         precio: Number(precio),
@@ -613,6 +624,16 @@ export default function PublishScreen() {
             onChangeText={setBarrio}
             contenedorStyle={SIN_MARGEN}
           />
+
+          {/* Marcar el punto exacto en el mapa */}
+          <Pressable style={styles.mapaBtn} onPress={() => setShowMapa(true)}>
+            <MaterialIcons name="place" size={24} color={colors.primary} />
+            <Text style={styles.mapaBtnTexto}>
+              {coords
+                ? 'Ubicación marcada ✓ (toca para cambiarla)'
+                : 'Marcar ubicación exacta en el mapa'}
+            </Text>
+          </Pressable>
         </View>
 
         {/* ── Términos y condiciones: el círculo marca/desmarca, el texto rosado abre la hoja ── */}
@@ -665,6 +686,16 @@ export default function PublishScreen() {
           setTerms(true);
           setShowTerms(false);
         }}
+      />
+
+      {/* Ventana para marcar la ubicación exacta en el mapa */}
+      <UbicacionPicker
+        visible={showMapa}
+        onClose={() => setShowMapa(false)}
+        onConfirm={setCoords}
+        puntoGuardado={coords}
+        direccion={direccion}
+        barrio={barrio}
       />
     </View>
   );
@@ -812,6 +843,24 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xs,
     fontSize: fontSizes.overline,
     color: colors.typography,
+  },
+
+  // ── Botón para marcar la ubicación exacta en el mapa ──
+  mapaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    borderRadius: radii.md,
+  },
+  mapaBtnTexto: {
+    fontSize: fontSizes.body2,
+    fontFamily: 'Poppins_700Bold',
+    color: colors.primary,
   },
 
   // ── Términos y condiciones ──

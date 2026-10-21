@@ -21,7 +21,7 @@
       "package": "com.juancho11.HouseloopReactNative"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
