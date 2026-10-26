@@ -13,7 +13,7 @@
    label flotante, listas desplegables en hoja inferior.
 
    El botón Publicar solo se habilita cuando se aceptan los
-   términos y condiciones y todos los campos están llenos.
+   términos y condiciones y todos los campos están llenos y válidos.
 
    Dependencias que asume este archivo (instálalas si no las
    tienes):
@@ -52,6 +52,67 @@ import Toast from 'react-native-toast-message';
 import { ButtonPrimary } from '@/components/ui/Button';
 
 const MAX_DESC = 720;
+
+// ── Límites de los archivos (deben ser iguales o menores a los del servidor y de Cloudinary gratis) ──
+// Video: 40 MB (la transformación de video de Cloudinary gratis llega hasta 40 MB)
+// Foto: 10 MB y 25 megapíxeles por foto, hasta 10 fotos por publicación
+const MB = 1024 * 1024;
+const MAX_VIDEO_MB = 40;
+const MAX_FOTO_MB = 10;
+const MAX_FOTOS = 10;
+const MAX_MEGAPIXELES = 25;
+
+// ── Límites de cada campo ──
+// Precio: hasta 12 dígitos (hasta 999.999.999.999). Está pendiente confirmarlo con la columna de la base.
+// Área: hasta 7 dígitos y 2 decimales (hasta 9.999.999,99 m²)
+// Habitaciones y baños: de 0 a 20
+const LIMITS = {
+  precio:    { max: 12 },
+  area:      { maxEntero: 7, maxDecimales: 2 },
+  contador:  { max: 20 },
+  direccion: { min: 5, max: 60 },
+  barrio:    { min: 3, max: 40 },
+};
+
+// ── Limpieza de lo que se escribe (los caracteres no permitidos ni se pueden teclear) ──
+
+// Letras permitidas: A-Z, con tildes, ñ y ü
+const LETRAS = 'A-Za-zÁÉÍÓÚÜÑáéíóúüñ';
+
+// Solo números, sin ceros a la izquierda (007 → 7, pero 0 se queda como 0)
+const limpiarEntero = (texto) =>
+  texto.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+
+// Números con un solo punto decimal y máximo 2 decimales (85.5, 120.25)
+const limpiarDecimal = (texto) => {
+  const soloValidos = texto.replace(/[^0-9.]/g, '');
+  const [entero, ...resto] = soloValidos.split('.');
+  const enteroLimpio = entero.replace(/^0+(?=\d)/, '');
+  if (resto.length === 0) return enteroLimpio;
+  return `${enteroLimpio}.${resto.join('').slice(0, LIMITS.area.maxDecimales)}`;
+};
+
+// Dirección: letras, números, espacio y # . , -  (ej: "Calle 18 # 25-30")
+const limpiarDireccion = (texto) =>
+  texto
+    .replace(new RegExp(`[^${LETRAS}0-9 #.,-]`, 'g'), '')
+    .replace(/ {2,}/g, ' ')   // no permite dos espacios seguidos
+    .replace(/^ /, '');       // no permite empezar con espacio
+
+// Barrio: letras, números, espacio, punto y guion (ej: "Villa Flor II")
+const limpiarBarrio = (texto) =>
+  texto
+    .replace(new RegExp(`[^${LETRAS}0-9 .-]`, 'g'), '')
+    .replace(/ {2,}/g, ' ')
+    .replace(/^ /, '');
+
+// Descripción: texto normal, pero sin los símbolos que se usan para meter código
+const CARACTERES_PROHIBIDOS_DESC = /[<>{}\[\]\\|^~`]/;
+const limpiarDescripcion = (texto) => texto.replace(/[<>{}\[\]\\|^~`]/g, '');
+
+// Formatos válidos (para revisar también lo que ya venía guardado)
+const DIRECCION_REGEX = new RegExp(`^[${LETRAS}0-9#.,-]+( [${LETRAS}0-9#.,-]+)*$`);
+const BARRIO_REGEX    = new RegExp(`^[${LETRAS}0-9.-]+( [${LETRAS}0-9.-]+)*$`);
 
 // Opciones de las listas desplegables
 const OFERTAS = [
@@ -226,7 +287,7 @@ export default function PublishScreen() {
   const [tipoOferta, setTipoOferta] = useState('venta');
   const [tipoInmueble, setTipoInmueble] = useState('casa');
   const [precio, setPrecio] = useState('');
-  const [area, setArea] = useState('0');
+  const [area, setArea] = useState('');
   const [habitaciones, setHabitaciones] = useState(0);
   const [banos, setBanos] = useState(0);
   const [descripcion, setDescripcion] = useState('');
@@ -246,13 +307,40 @@ export default function PublishScreen() {
 
   const [enviando, setEnviando] = useState(false);
 
-  // ── El botón Publicar solo se habilita con todos los campos llenos y los términos aceptados ──
+  // ── Validación de cada campo ──
+  const direccionLimpia   = direccion.trim();
+  const barrioLimpio      = barrio.trim();
+  const descripcionLimpia = descripcion.trim();
+
+  const precioValido =
+    /^[1-9]\d*$/.test(precio) && precio.length <= LIMITS.precio.max;
+
+  const areaValida =
+    new RegExp(`^\\d{1,${LIMITS.area.maxEntero}}(\\.\\d{1,${LIMITS.area.maxDecimales}})?$`).test(area) &&
+    Number(area) > 0;
+
+  const direccionValida =
+    direccionLimpia.length >= LIMITS.direccion.min &&
+    direccionLimpia.length <= LIMITS.direccion.max &&
+    DIRECCION_REGEX.test(direccionLimpia);
+
+  const barrioValido =
+    barrioLimpio.length >= LIMITS.barrio.min &&
+    barrioLimpio.length <= LIMITS.barrio.max &&
+    BARRIO_REGEX.test(barrioLimpio);
+
+  const descripcionValida =
+    descripcionLimpia !== '' &&
+    descripcion.length <= MAX_DESC &&
+    !CARACTERES_PROHIBIDOS_DESC.test(descripcion);
+
+  // ── El botón Publicar solo se habilita con todos los campos válidos y los términos aceptados ──
   const camposCompletos =
-    precio.trim() !== '' &&
-    area.trim() !== '' &&
-    direccion.trim() !== '' &&
-    barrio.trim() !== '' &&
-    descripcion.trim() !== '' &&
+    precioValido &&
+    areaValida &&
+    direccionValida &&
+    barrioValido &&
+    descripcionValida &&
     coords !== null;
 
   const puedePublicar = camposCompletos && terms && !enviando && !cargando;
@@ -277,8 +365,9 @@ export default function PublishScreen() {
 
         setTipoOferta(p.tipo_operacion || 'venta');
         setTipoInmueble(p.tipo_inmueble || 'casa');
-        setPrecio(String(p.precio ?? ''));
-        setArea(String(p.area_m2 ?? '0'));
+        // El precio y el área pueden venir como "350000000.00": se llevan a número limpio
+        setPrecio(p.precio != null ? String(Math.round(Number(p.precio))) : '');
+        setArea(p.area_m2 != null ? String(Number(p.area_m2)) : '');
         setHabitaciones(Number(p.habitaciones) || 0);
         setBanos(Number(p.banos) || 0);
         setDescripcion(p.descripcion || '');
@@ -303,38 +392,75 @@ export default function PublishScreen() {
     cargarPropiedad();
   }, [id]);
 
-  // ── Contadores habitaciones / baños ──
+  // ── Contadores habitaciones / baños (de 0 a 20) ──
   const changeCounter = (setter) => (delta) => {
-    setter((prev) => Math.max(0, prev + delta));
+    setter((prev) => Math.min(LIMITS.contador.max, Math.max(0, prev + delta)));
   };
   const changeHabitaciones = changeCounter(setHabitaciones);
   const changeBanos = changeCounter(setBanos);
 
   // ── Selección de video ──
+  // Si pesa más de MAX_VIDEO_MB se avisa y NO se selecciona (el servidor
+  // lo rechazaría igual, pero así el usuario no espera la subida para enterarse).
   const pickVideo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes:['videos'],
       quality: 1,
     });
-    if (!result.canceled) {
-      const asset = result.assets[0];
-      // Para depurar: si fileSize sale 0 o undefined, el problema está en la selección
-      console.log('🎥 Video elegido:', asset.uri, asset.fileSize, asset.mimeType);
-      setVideoUri(asset.uri);
-      mostrarToast('videoAgregado');
+    if (result.canceled) return;
+
+    const video = result.assets[0];
+
+    // fileSize puede venir vacío en algunos celulares: en ese caso no se puede revisar aquí
+    if (video.fileSize && video.fileSize > MAX_VIDEO_MB * MB) {
+      Alert.alert(
+        'Video muy pesado',
+        `Tu video pesa ${(video.fileSize / MB).toFixed(1)} MB y el máximo es ${MAX_VIDEO_MB} MB. Elige uno más corto.`
+      );
+      return;
     }
+
+    setVideoUri(video.uri);
+    mostrarToast('videoAgregado');
   };
 
   // ── Selección de fotos (múltiples) ──
+  // quality: 0.7 comprime cada foto al elegirla. Las que pesen más de
+  // MAX_FOTO_MB o tengan más de MAX_MEGAPIXELES se descartan con un aviso.
   const pickPhotos = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes:['images'],
       allowsMultipleSelection: true,
-      quality: 1,
+      selectionLimit: MAX_FOTOS,
+      quality: 0.7,
     });
-    if (!result.canceled) {
-      console.log('🖼️ Fotos elegidas:', result.assets.map((a) => a.fileSize));
-      setPhotos(result.assets.map((a) => a.uri));
+    if (result.canceled) return;
+
+    const aceptadas = [];
+    let descartadas = 0;
+
+    // slice: seguro extra por si el selector deja elegir más del límite
+    result.assets.slice(0, MAX_FOTOS).forEach((foto) => {
+      const muyPesada = foto.fileSize && foto.fileSize > MAX_FOTO_MB * MB;
+      const muyGrande =
+        foto.width && foto.height && foto.width * foto.height > MAX_MEGAPIXELES * 1000000;
+
+      if (muyPesada || muyGrande) {
+        descartadas += 1;
+      } else {
+        aceptadas.push(foto.uri);
+      }
+    });
+
+    if (descartadas > 0) {
+      Alert.alert(
+        'Algunas fotos no se agregaron',
+        `${descartadas} foto(s) son demasiado grandes (máximo ${MAX_FOTO_MB} MB y ${MAX_MEGAPIXELES} megapíxeles). Elige otras o tómalas con menor resolución.`
+      );
+    }
+
+    if (aceptadas.length > 0) {
+      setPhotos(aceptadas);
       mostrarToast('fotosAgregadas');
     }
   };
@@ -347,8 +473,8 @@ export default function PublishScreen() {
       return { video: videoActual, miniatura: null, fotos: fotosActuales };
     }
 
-    console.log('BASE_URL:', BASE_URL);
-    console.log('📦 Se subirá:', { video: !!videoUri, fotos: photos.length });
+    // /upload exige sesión iniciada: el token va en el header Authorization
+    const token = await AsyncStorage.getItem('token');
 
     const formData = new FormData();
 
@@ -364,6 +490,7 @@ export default function PublishScreen() {
 
     const response = await fetch(`${BASE_URL}/upload`, {
       method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
       body: formData,
       // OJO: no pongas 'Content-Type' a mano aquí. El navegador/RN
       // necesita generar el "boundary" del multipart automáticamente;
@@ -371,7 +498,16 @@ export default function PublishScreen() {
     });
 
     if (!response.ok) {
-      throw new Error('No se pudieron subir las fotos/video');
+      // El backend responde { error: '...' } o { mensaje: '...' }
+      let motivo = '';
+      try {
+        const err = await response.json();
+        motivo = err.error || err.mensaje || '';
+      } catch (e) {
+        // la respuesta no era JSON; se usa el mensaje genérico
+      }
+      console.warn('/upload respondió', response.status, motivo);
+      throw new Error(motivo || 'No se pudieron subir las fotos/video');
     }
 
     const subidos = await response.json(); // { video, miniatura, fotos }
@@ -386,16 +522,8 @@ export default function PublishScreen() {
 
   // ── Envío de datos al backend ──
   const handlePublicar = async () => {
-    console.log('🟡 Publicar presionado');
-
     // Seguro extra: el botón ya está deshabilitado en estos casos
     if (!puedePublicar) return;
-
-    if (!precio || !direccion || !barrio) {
-      console.log('🔴 Validación falló:', { precio, direccion, barrio });
-      Alert.alert('Campos incompletos', 'Por favor llena el precio, dirección y barrio.');
-      return;
-    }
 
     setEnviando(true);
 
@@ -411,22 +539,18 @@ export default function PublishScreen() {
 
       const usuario = JSON.parse(usuarioRaw);
 
-      console.log('👤 Usuario desde AsyncStorage:', usuario);
-
       // 1. Subir archivos primero, para obtener sus URLs reales
-      console.log('🟣 Subiendo archivos...');
       const archivosSubidos = await subirArchivos();
-      console.log('🟣 Archivos subidos:', archivosSubidos);
 
       // 2. Armar el payload con las URLs reales (no las URIs locales)
       const payload = {
         ciudad: ciudad || 'pasto',
-        direccion,
-        barrio,
+        direccion: direccionLimpia,
+        barrio: barrioLimpio,
         latitud: coords?.latitude,
         longitud: coords?.longitude,
         titulo: `${tipoInmueble.toUpperCase()} en ${tipoOferta}`,
-        descripcion,
+        descripcion: descripcionLimpia,
         precio: Number(precio),
         area_m2: Number(area),
         habitaciones: Number(habitaciones),
@@ -441,7 +565,6 @@ export default function PublishScreen() {
       };
 
       const url = modoEdicion ? `${BASE_URL}/propiedades/${id}` : `${BASE_URL}/propiedades`;
-      console.log('🟢 Enviando a:', url);
 
       const response = await fetch(url, {
         method: modoEdicion ? 'PUT' : 'POST',
@@ -461,12 +584,12 @@ export default function PublishScreen() {
         });
         router.replace('/feed');
       } else {
-        console.log('🔴 Error del backend:', data);
+        console.warn('Error del backend al guardar la propiedad:', data);
         Alert.alert('Error', data.error || data.detalle || 'No se pudo guardar la propiedad.');
       }
     } catch (error) {
       console.error('🔴 Error de red:', error?.message, error);
-      Alert.alert('Error de red', 'No se pudo conectar con el servidor backend.');
+      Alert.alert('No se pudo publicar', error?.message || 'No se pudo conectar con el servidor backend.');
     } finally {
       setEnviando(false);
     }
@@ -500,7 +623,7 @@ export default function PublishScreen() {
                 ? 'Video nuevo seleccionado ✓'
                 : videoActual
                   ? 'Video actual ✓ (toca para cambiarlo)'
-                  : 'Agregar video'}
+                  : `Agregar video (máx. ${MAX_VIDEO_MB} MB)`}
             </Text>
           </Pressable>
 
@@ -511,7 +634,7 @@ export default function PublishScreen() {
                 ? `${photos.length} foto(s) nuevas seleccionadas`
                 : fotosActuales.length > 0
                   ? `${fotosActuales.length} foto(s) actuales (toca para cambiarlas)`
-                  : 'Agregar fotos'}
+                  : `Agregar fotos (hasta ${MAX_FOTOS})`}
             </Text>
           </Pressable>
         </View>
@@ -539,23 +662,35 @@ export default function PublishScreen() {
             onChange={setTipoInmueble}
           />
 
-          {/* Precio */}
+          {/* Precio: solo números */}
           <Input
             label="Precio $ (Sin puntos y comas)"
             value={precio}
-            onChangeText={setPrecio}
+            onChangeText={(texto) => setPrecio(limpiarEntero(texto))}
             keyboardType="numeric"
+            maxLength={LIMITS.precio.max}
             contenedorStyle={SIN_MARGEN}
           />
+          {precio !== '' && !precioValido && (
+            <Text style={styles.errorText}>
+              Escribe un precio mayor a 0, solo números (máximo {LIMITS.precio.max} dígitos)
+            </Text>
+          )}
 
-          {/* Área */}
+          {/* Área: números con un punto decimal */}
           <Input
             label="Área (en m²)"
             value={area}
-            onChangeText={setArea}
-            keyboardType="numeric"
+            onChangeText={(texto) => setArea(limpiarDecimal(texto))}
+            keyboardType="decimal-pad"
+            maxLength={LIMITS.area.maxEntero + 1 + LIMITS.area.maxDecimales}
             contenedorStyle={SIN_MARGEN}
           />
+          {area !== '' && !areaValida && (
+            <Text style={styles.errorText}>
+              Escribe un área mayor a 0, por ejemplo 85 u 85.5
+            </Text>
+          )}
 
           {/* Habitaciones y Baños */}
           <View style={styles.row}>
@@ -588,7 +723,7 @@ export default function PublishScreen() {
               multiline
               maxLength={MAX_DESC}
               value={descripcion}
-              onChangeText={setDescripcion}
+              onChangeText={(texto) => setDescripcion(limpiarDescripcion(texto))}
             />
             <Text style={styles.charCount}>{descripcion.length}/{MAX_DESC}</Text>
           </View>
@@ -609,21 +744,33 @@ export default function PublishScreen() {
             onChange={setCiudad}
           />
 
-          {/* Dirección */}
+          {/* Dirección: letras, números y # . , - */}
           <Input
             label="Dirección"
             value={direccion}
-            onChangeText={setDireccion}
+            onChangeText={(texto) => setDireccion(limpiarDireccion(texto))}
+            maxLength={LIMITS.direccion.max}
             contenedorStyle={SIN_MARGEN}
           />
+          {direccion !== '' && !direccionValida && (
+            <Text style={styles.errorText}>
+              La dirección debe tener entre {LIMITS.direccion.min} y {LIMITS.direccion.max} caracteres
+            </Text>
+          )}
 
-          {/* Barrio */}
+          {/* Barrio: letras, números, punto y guion */}
           <Input
             label="Barrio"
             value={barrio}
-            onChangeText={setBarrio}
+            onChangeText={(texto) => setBarrio(limpiarBarrio(texto))}
+            maxLength={LIMITS.barrio.max}
             contenedorStyle={SIN_MARGEN}
           />
+          {barrio !== '' && !barrioValido && (
+            <Text style={styles.errorText}>
+              El barrio debe tener entre {LIMITS.barrio.min} y {LIMITS.barrio.max} caracteres
+            </Text>
+          )}
 
           {/* Marcar el punto exacto en el mapa */}
           <Pressable style={styles.mapaBtn} onPress={() => setShowMapa(true)}>
@@ -770,6 +917,15 @@ const styles = StyleSheet.create({
   },
   fieldHalf: {
     flex: 1,
+  },
+
+  // ── Aviso rojo bajo un campo inválido ──
+  // marginTop negativo: lo acerca al campo de arriba (la sección ya deja un espacio entre hijos)
+  errorText: {
+    fontSize: fontSizes.body3,
+    fontFamily: 'Poppins_400Regular',
+    color: '#ef4444',
+    marginTop: -spacing.md,
   },
 
   // ── Contadores (habitaciones / baños) ──
