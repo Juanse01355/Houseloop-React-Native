@@ -192,9 +192,6 @@ useEffect(() => {
             </View>
             <Text style={styles.rememberText}>Recordarme</Text>
           </Pressable>
-          <Pressable>
-            <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
-          </Pressable>
         </View>
 
 
@@ -276,11 +273,6 @@ const styles = StyleSheet.create({
   rememberText: {
     fontSize: fontSizes.body2,
     color: colors.titles,
-    fontFamily: "Poppins_400Regular",
-  },
-  forgot: {
-    fontSize: fontSizes.body2,
-    color: colors.primary,
     fontFamily: "Poppins_400Regular",
   },
   footer: {

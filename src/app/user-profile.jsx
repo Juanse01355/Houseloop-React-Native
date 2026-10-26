@@ -141,7 +141,10 @@ export default function UserProfileScreen() {
         <View style={styles.userSection}>
           <Avatar uri={foto || null} size="xxl" />
 
-          <Text style={styles.userName}>{nombre}</Text>
+          {/* Una sola línea: si el nombre es largo se corta con "..." */}
+          <Text style={styles.userName} numberOfLines={1}>
+            {nombre}
+          </Text>
           <Text style={styles.userRole}>Propietario</Text>
 
           {/* ── Botones: Contactar + copiar enlace ── */}
@@ -243,7 +246,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
 
+  // maxWidth: "100%" evita que el nombre sea más ancho que la pantalla
   userName: {
+    maxWidth: "100%",
+    textAlign: "center",
     fontSize: fontSizes.h2,
     fontWeight: fontWeights.bold,
     color: darkColors.titles,

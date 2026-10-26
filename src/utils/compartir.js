@@ -12,7 +12,7 @@ import { Platform, Share } from "react-native";
 import Toast from "react-native-toast-message";
 
 // Cuando tengas la versión web publicada, pon aquí su dirección (sin "/" al final),
-// por ejemplo "https://houseloop.vercel.app". Si la dejas vacía, en el celular
+// por ejemplo "https://houseloop.netlify.app". Si la dejas vacía, en el celular
 // se comparte el enlace de la app.
 const URL_WEB_PUBLICA = "";
 
@@ -72,8 +72,6 @@ async function copiarTexto(texto) {
 //  - Celular (app) y navegador de celular: menú de compartir del sistema
 //  - Web en computador: copia el enlace y avisa con un toast
 export async function compartirPropiedad(propiedad) {
-  console.log("[compartir] botón pulsado, propiedad:", propiedad?.id_propiedad);
-
   if (!propiedad?.id_propiedad) {
     Toast.show({ type: "error", text1: "No se pudo compartir esta propiedad" });
     return;
@@ -106,7 +104,6 @@ export async function compartirPropiedad(propiedad) {
 
 // Botón del link: copia el enlace de la propiedad
 export async function copiarEnlacePropiedad(propiedad) {
-  console.log("[compartir] copiar enlace, propiedad:", propiedad?.id_propiedad);
   try {
     await copiarTexto(enlacePropiedad(propiedad.id_propiedad));
     toastCopiado();
