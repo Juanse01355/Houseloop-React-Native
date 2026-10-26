@@ -165,12 +165,6 @@ function FeedCard({
     const idDueno =
       propiedad.id_usuario ?? propiedad.id_propietario ?? propiedad.usuario_id;
 
-    console.log(
-      "👤 Tocaron el avatar. Campos que trae la propiedad:",
-      Object.keys(propiedad),
-    );
-    console.log("👤 id del dueño:", idDueno, "| es mía:", esMia);
-
     if (esMia) {
       router.push("/profile");
       return;
@@ -306,9 +300,14 @@ function FeedCard({
       <View style={styles.info}>
         <Pressable style={styles.user} onPress={irAlPerfil}>
           <Avatar uri={propiedad.foto_perfil_url} size="sm" />
-          <View>
-            <Text style={styles.username}>{propiedad.propietario}</Text>
-            <Text style={styles.userRole}>Propietario</Text>
+          {/* flexShrink: 1 deja que el nombre se achique y se corte con "..." */}
+          <View style={styles.userTextos}>
+            <Text style={styles.username} numberOfLines={1}>
+              {propiedad.propietario}
+            </Text>
+            <Text style={styles.userRole} numberOfLines={1}>
+              Propietario
+            </Text>
           </View>
         </Pressable>
 
@@ -644,10 +643,15 @@ const styles = StyleSheet.create({
   muteIconDisabled: {
     opacity: 0.5,
   },
+  // ── Info inferior izquierda ──
+  // "right" le pone un borde por la derecha: así el nombre nunca llega
+  // hasta los botones de chat / compartir / sonido. Si quieres más o menos
+  // espacio para el nombre, cambia este número.
   info: {
     position: "absolute",
     bottom: verticalScale(80),
     left: spacing.md,
+    right: scale(72),
     zIndex: 10,
     gap: scale(12),
   },
@@ -655,6 +659,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  // flexShrink: 1 permite que el bloque de textos se achique en vez de
+  // empujar el borde de la pantalla
+  userTextos: {
+    flexShrink: 1,
   },
   username: {
     fontSize: moderateScale(fontSizes.h4),

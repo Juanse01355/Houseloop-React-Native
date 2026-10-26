@@ -31,10 +31,68 @@ import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
 import IconPerson from '../../assets/icons/icon-person.svg';
 import IconAdd from '../../assets/icons/icon-add.svg';
 
+// ── Límites de longitud (iguales a los de signup.jsx y al backend) ──
 const LIMITS = {
-  name:  { min: 2, max: 100 },
-  email: { max: 254 },
+  name:  { min: 2, max: 30 },
+  email: { max: 60 },
 };
+
+// ── Limpieza de lo que se escribe (los caracteres no permitidos ni se pueden teclear) ──
+
+// Letras permitidas en el nombre: A-Z, con tildes, ñ y ü
+const LETRAS = 'A-Za-zÁÉÍÓÚÜÑáéíóúüñ';
+
+// Nombre: solo letras y espacios. Un solo espacio seguido, y nunca al inicio
+const limpiarNombre = (texto) =>
+  texto
+    .replace(new RegExp(`[^${LETRAS} ]`, 'g'), '') // borra todo lo que no sea letra o espacio
+    .replace(/ {2,}/g, ' ')                        // no permite dos espacios seguidos
+    .replace(/^ /, '');                            // no permite empezar con espacio
+
+// Un nombre válido: palabras de letras separadas por un solo espacio
+const NOMBRE_REGEX = new RegExp(`^[${LETRAS}]+( [${LETRAS}]+)*$`);
+
+// Correo: solo letras, números y los símbolos . _ + - @ (sin espacios)
+const limpiarCorreo = (texto) => texto.replace(/[^A-Za-z0-9._+@-]/g, '');
+
+// ── Dominios mal escritos muy comunes → el dominio correcto ──
+const DOMINIOS_ERRONEOS = {
+  'gmial.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'gmal.com': 'gmail.com',
+  'gmil.com': 'gmail.com',
+  'gmail.con': 'gmail.com',
+  'gmail.cm': 'gmail.com',
+  'hotmial.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com',
+  'hotmail.con': 'hotmail.com',
+  'outlok.com': 'outlook.com',
+  'outlook.con': 'outlook.com',
+  'yaho.com': 'yahoo.com',
+  'yahoo.con': 'yahoo.com',
+  'iclud.com': 'icloud.com',
+  'icloud.con': 'icloud.com',
+};
+
+// Revisa el correo y devuelve '' si está bien, o el mensaje de error si no
+function revisarCorreo(correo) {
+  const partes = correo.split('@');
+  if (partes.length !== 2) return 'Escribe un correo válido, por ejemplo nombre@correo.com';
+
+  const [local, dominio] = partes;
+
+  // Parte de antes de la @: letras y números, separados por un solo . _ + o -
+  const localOk = /^[A-Za-z0-9]+([._+-][A-Za-z0-9]+)*$/.test(local);
+  // Parte de después de la @: dominio con punto y terminación de solo letras (.com, .co, .edu.co)
+  const dominioOk = /^([A-Za-z0-9]+(-[A-Za-z0-9]+)*\.)+[A-Za-z]{2,}$/.test(dominio);
+
+  if (!localOk || !dominioOk) return 'Escribe un correo válido, por ejemplo nombre@correo.com';
+
+  const sugerencia = DOMINIOS_ERRONEOS[dominio.toLowerCase()];
+  if (sugerencia) return `¿Quisiste decir ${local}@${sugerencia}?`;
+
+  return '';
+}
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -74,10 +132,14 @@ export default function EditProfileScreen() {
     cargarUsuario();
   }, []);
 
+  // ── Nombre y correo limpios (sin espacios al inicio/final, correo en minúsculas) ──
+  const nameTrim  = name.trim();
+  const emailTrim = email.trim().toLowerCase();
+
   // ── ¿El usuario cambió algo respecto a lo original? ──
   const fotoCambio  = foto !== originalUsuario.foto;
-  const hayCambios  = name !== originalUsuario.nombre
-    || email !== originalUsuario.correo
+  const hayCambios  = nameTrim !== originalUsuario.nombre
+    || emailTrim !== originalUsuario.correo.toLowerCase()
     || fotoCambio;
 
   // ── Elegir una foto nueva desde la galería ──
@@ -100,9 +162,22 @@ export default function EditProfileScreen() {
     }
   };
 
-  const nameValid  = name.trim().length >= LIMITS.name.min && name.length <= LIMITS.name.max;
-  const emailValid = email.length > 0 && email.length <= LIMITS.email.max;
-  const canSubmit  = nameValid && emailValid;
+  // ── Validación de nombre y correo ──
+  const nameValid =
+    nameTrim.length >= LIMITS.name.min &&
+    nameTrim.length <= LIMITS.name.max &&
+    NOMBRE_REGEX.test(nameTrim);
+  const nameError = name.length > 0 && !nameValid
+    ? `El nombre debe tener entre ${LIMITS.name.min} y ${LIMITS.name.max} letras`
+    : '';
+
+  const emailError = emailTrim.length > 0 ? revisarCorreo(emailTrim) : '';
+  const emailValid =
+    emailTrim.length > 0 &&
+    emailTrim.length <= LIMITS.email.max &&
+    emailError === '';
+
+  const canSubmit = nameValid && emailValid;
 
   // ── Sube la foto de perfil al backend, si el usuario eligió una nueva ──
   const subirFotoPerfil = async (token) => {
@@ -169,7 +244,7 @@ export default function EditProfileScreen() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ nombre: name, correo: email }),
+        body: JSON.stringify({ nombre: nameTrim, correo: emailTrim }),
       });
 
       const data = await response.json();
@@ -184,14 +259,14 @@ export default function EditProfileScreen() {
 
       const usuarioActualizado = {
         ...usuarioActual,
-        nombre: name,
-        correo: email,
+        nombre: nameTrim,
+        correo: emailTrim,
         foto: fotoUrlFinal,
       };
 
       await AsyncStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
 
-      setOriginalUsuario({ nombre: name, correo: email, foto: fotoUrlFinal });
+      setOriginalUsuario({ nombre: nameTrim, correo: emailTrim, foto: fotoUrlFinal });
       setFoto(fotoUrlFinal);
 
       // Toast según lo que cambió y directo al perfil
@@ -258,26 +333,36 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
-        {/* ── Input nombre (reutilizado de signup.jsx) ── */}
+        {/* ── Input nombre: solo letras y espacios ── */}
         <Input
           label="Nombre y apellido"
           value={name}
-          onChangeText={setName}
+          onChangeText={(texto) => setName(limpiarNombre(texto))}
           maxLength={LIMITS.name.max}
           icon={<IconPerson width={20} height={20} fill={colors.primaryDisabled} />}
           iconActive={<IconPerson width={20} height={20} fill={colors.primary} />}
         />
 
-        {/* ── Input correo (igual que en signup.jsx) ── */}
+        {/* ── Aviso de nombre inválido ── */}
+        {nameError !== '' && (
+          <Text style={styles.errorText}>{nameError}</Text>
+        )}
+
+        {/* ── Input correo: solo letras, números y . _ + - @ ── */}
         <Input
           label="Correo electrónico"
           keyboardType="email-address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(texto) => setEmail(limpiarCorreo(texto))}
           maxLength={LIMITS.email.max}
           icon={<IconAlternateEmail width={20} height={20} fill={colors.primaryDisabled} />}
           iconActive={<IconAlternateEmail width={20} height={20} fill={colors.primary} />}
         />
+
+        {/* ── Aviso de correo inválido o con error de escritura ── */}
+        {emailError !== '' && (
+          <Text style={styles.errorText}>{emailError}</Text>
+        )}
 
         {/* ── Botón guardar cambios ── */}
         <Pressable
@@ -412,6 +497,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.white,
+  },
+  errorText: {
+    fontSize: fontSizes.body3,
+    fontFamily: 'Poppins_400Regular',
+    color: '#ef4444',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
   },
   btnPrimary: {
     width: '100%',

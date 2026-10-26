@@ -29,15 +29,76 @@ import IconAlternateEmail from '../../assets/icons/icon-alternate-email.svg';
 import IconPerson from '../../assets/icons/icon-person.svg';
 import IconVisibility from '../../assets/icons/icon-visibility.svg';
 
-// ── Límites de longitud (estándares actuales de la industria) ──
-// Nombre: 2-100 caracteres es un rango común para formularios de registro
-// Email: RFC 5321 establece 254 caracteres como máximo para una dirección de correo
-// Password: NIST SP 800-63B recomienda permitir un mínimo de 8 y hasta al menos 64 caracteres
+// ── Límites de longitud ──
+// Nombre: 2-30 caracteres, alcanza para un nombre y dos apellidos y no desborda el feed ni el perfil
+// Email: máximo 60 caracteres (los correos reales rara vez pasan de 40)
+// Password: 8-32 caracteres. NIST recomienda permitir al menos 64, pero 32 cubre
+//           a los gestores de contraseñas y bcrypt solo usa los primeros 72
 const LIMITS = {
-  name:     { min: 2, max: 100 },
-  email:    { max: 254 },
-  password: { min: 8, max: 64 },
+  name:     { min: 2, max: 30 },
+  email:    { max: 60 },
+  password: { min: 8, max: 32 },
 };
+
+// ── Limpieza de lo que se escribe (los caracteres no permitidos ni se pueden teclear) ──
+
+// Letras permitidas en el nombre: A-Z, con tildes, ñ y ü
+const LETRAS = 'A-Za-zÁÉÍÓÚÜÑáéíóúüñ';
+
+// Nombre: solo letras y espacios. Un solo espacio seguido, y nunca al inicio
+const limpiarNombre = (texto) =>
+  texto
+    .replace(new RegExp(`[^${LETRAS} ]`, 'g'), '') // borra todo lo que no sea letra o espacio
+    .replace(/ {2,}/g, ' ')                        // no permite dos espacios seguidos
+    .replace(/^ /, '');                            // no permite empezar con espacio
+
+// Un nombre válido: palabras de letras separadas por un solo espacio
+const NOMBRE_REGEX = new RegExp(`^[${LETRAS}]+( [${LETRAS}]+)*$`);
+
+// Correo: solo letras, números y los símbolos . _ + - @ (sin espacios)
+const limpiarCorreo = (texto) => texto.replace(/[^A-Za-z0-9._+@-]/g, '');
+
+// Contraseña: cualquier carácter normal del teclado (ASCII visible), sin espacios ni tildes
+const limpiarPassword = (texto) => texto.replace(/[^\x21-\x7E]/g, '');
+
+// ── Dominios mal escritos muy comunes → el dominio correcto ──
+const DOMINIOS_ERRONEOS = {
+  'gmial.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'gmal.com': 'gmail.com',
+  'gmil.com': 'gmail.com',
+  'gmail.con': 'gmail.com',
+  'gmail.cm': 'gmail.com',
+  'hotmial.com': 'hotmail.com',
+  'hotmal.com': 'hotmail.com',
+  'hotmail.con': 'hotmail.com',
+  'outlok.com': 'outlook.com',
+  'outlook.con': 'outlook.com',
+  'yaho.com': 'yahoo.com',
+  'yahoo.con': 'yahoo.com',
+  'iclud.com': 'icloud.com',
+  'icloud.con': 'icloud.com',
+};
+
+// Revisa el correo y devuelve '' si está bien, o el mensaje de error si no
+function revisarCorreo(correo) {
+  const partes = correo.split('@');
+  if (partes.length !== 2) return 'Escribe un correo válido, por ejemplo nombre@correo.com';
+
+  const [local, dominio] = partes;
+
+  // Parte de antes de la @: letras y números, separados por un solo . _ + o -
+  const localOk = /^[A-Za-z0-9]+([._+-][A-Za-z0-9]+)*$/.test(local);
+  // Parte de después de la @: dominio con punto y terminación de solo letras (.com, .co, .edu.co)
+  const dominioOk = /^([A-Za-z0-9]+(-[A-Za-z0-9]+)*\.)+[A-Za-z]{2,}$/.test(dominio);
+
+  if (!localOk || !dominioOk) return 'Escribe un correo válido, por ejemplo nombre@correo.com';
+
+  const sugerencia = DOMINIOS_ERRONEOS[dominio.toLowerCase()];
+  if (sugerencia) return `¿Quisiste decir ${local}@${sugerencia}?`;
+
+  return '';
+}
 
 // ── Reglas de validación de contraseña ──
 const passwordRules = [
@@ -140,9 +201,21 @@ export default function SignupScreen() {
   // ── Verifica si todas las reglas se cumplen ──
   const allRulesPass = passwordRules.every(rule => rule.test(password));
 
-  // ── Validación de longitud para nombre y correo ──
-  const nameValid  = name.trim().length >= LIMITS.name.min && name.length <= LIMITS.name.max;
-  const emailValid = email.length > 0 && email.length <= LIMITS.email.max;
+  // ── Nombre y correo limpios (sin espacios al inicio/final, correo en minúsculas) ──
+  const nameTrim  = name.trim();
+  const emailTrim = email.trim().toLowerCase();
+
+  // ── Validación de nombre y correo ──
+  const nameValid =
+    nameTrim.length >= LIMITS.name.min &&
+    nameTrim.length <= LIMITS.name.max &&
+    NOMBRE_REGEX.test(nameTrim);
+
+  const emailError = emailTrim.length > 0 ? revisarCorreo(emailTrim) : '';
+  const emailValid =
+    emailTrim.length > 0 &&
+    emailTrim.length <= LIMITS.email.max &&
+    emailError === '';
 
   // ── Validación de coincidencia de contraseñas ──
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
@@ -160,8 +233,8 @@ export default function SignupScreen() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: name,         // debe llamarse "nombre", igual que espera req.body en el backend
-        correo: email,        // debe llamarse "correo"
+        nombre: nameTrim,     // debe llamarse "nombre", igual que espera req.body en el backend
+        correo: emailTrim,    // debe llamarse "correo"
         contrasena: password, // debe llamarse "contrasena"
       }),
     });
@@ -199,33 +272,40 @@ export default function SignupScreen() {
           Regístrate en nuestra plataforma y da el primer paso en tú camino.
         </Text>
 
-        {/* Input nombre */}
+        {/* Input nombre: solo letras y espacios */}
         <Input
           label="Ingresa tu nombre"
           value={name}
-          onChangeText={setName}
+          onChangeText={(texto) => setName(limpiarNombre(texto))}
           maxLength={LIMITS.name.max}
           icon={<IconPerson width={20} height={20} fill={colors.primaryDisabled} />}
           iconActive={<IconPerson width={20} height={20} fill={colors.primary} />}
         />
 
-        {/* Input correo */}
+        {/* Input correo: solo letras, números y . _ + - @ */}
         <Input
           label="Correo electrónico"
           keyboardType="email-address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(texto) => setEmail(limpiarCorreo(texto))}
           maxLength={LIMITS.email.max}
           icon={<IconAlternateEmail width={20} height={20} fill={colors.primaryDisabled} />}
           iconActive={<IconAlternateEmail width={20} height={20} fill={colors.primary} />}
         />
+
+        {/* Aviso de correo inválido o con error de escritura */}
+        {emailError !== '' && (
+          <Text style={[styles.matchText, { color: '#ef4444' }]}>
+            {emailError}
+          </Text>
+        )}
 
         {/* Input contraseña con toggle */}
         <Input
           label="Contraseña"
           secureTextEntry={!showPassword}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(texto) => setPassword(limpiarPassword(texto))}
           onFocusExternal={() => setShowRules(true)}
           maxLength={LIMITS.password.max}
           icon={
@@ -265,7 +345,7 @@ export default function SignupScreen() {
           label="Confirmar contraseña"
           secureTextEntry={!showConfirmPassword}
           value={confirmPassword}
-          onChangeText={setConfirmPassword}
+          onChangeText={(texto) => setConfirmPassword(limpiarPassword(texto))}
           maxLength={LIMITS.password.max}
           icon={
             <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>

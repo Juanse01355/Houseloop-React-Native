@@ -12,7 +12,6 @@ import {
   colors,
   fontSizes,
   fontWeights,
-  radii,
   shadows,
   spacing,
 } from "@/constants/theme-houseloop";
@@ -23,7 +22,7 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
- StyleSheet, 
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -31,6 +30,18 @@ import {
 // Íconos
 import IconAlternateEmail from "../../assets/icons/icon-alternate-email.svg";
 import IconLock from "../../assets/icons/icon-lock.svg";
+
+// ── Límites de longitud ──
+// Correo: igual que en crear cuenta (60)
+// Contraseña: solo un tope de 72 (lo que usa bcrypt). No se aplican las reglas de
+// crear cuenta aquí para no dejar fuera a usuarios que ya tienen una contraseña guardada.
+const LIMITS = {
+  email:    { max: 60 },
+  password: { max: 72 },
+};
+
+// Correo: solo letras, números y los símbolos . _ + - @ (los demás ni se pueden teclear)
+const limpiarCorreo = (texto) => texto.replace(/[^A-Za-z0-9._+@-]/g, '');
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -46,12 +57,24 @@ useEffect(() => {
     if (correoGuardado) {
       setEmail(correoGuardado);
       setRemember(true);   // también marcamos el checkbox como activado
-          }
-        };
-        cargarCorreoGuardado();
-      }, []);   // el array vacío [] significa "solo ejecuta esto una vez, al abrir la pantalla"
+    }
+  };
+  cargarCorreoGuardado();
+}, []);   // el array vacío [] significa "solo ejecuta esto una vez, al abrir la pantalla"
 
   const handleLogin = async () => {
+    // Si ya hay un intento en curso, ignora el segundo toque
+    if (loading) return;
+
+    // Correo sin espacios y en minúsculas (la contraseña NO se toca)
+    const correoLimpio = email.trim().toLowerCase();
+
+    // Revisión rápida antes de molestar al servidor
+    if (!correoLimpio || !password) {
+      Toast.show({ type: 'error', text1: 'Escribe tu correo y tu contraseña' });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -60,7 +83,7 @@ useEffect(() => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          correo: email, // debe llamarse "correo", igual que espera req.body en el backend
+          correo: correoLimpio, // debe llamarse "correo", igual que espera req.body en el backend
           contrasena: password, // debe llamarse "contrasena", igual que espera req.body en el backend
         }),
       });
@@ -83,7 +106,7 @@ useEffect(() => {
       // Si NO está activado, nos aseguramos de borrar cualquier correo guardado antes
       // (por si el usuario lo había activado en una sesión anterior y ahora lo desactivó)
       if (remember) {
-        await AsyncStorage.setItem('correoRecordado', email);
+        await AsyncStorage.setItem('correoRecordado', correoLimpio);
       } else {
         await AsyncStorage.removeItem('correoRecordado');
       }
@@ -101,14 +124,15 @@ useEffect(() => {
         Toast.show({ type: 'success', text1: 'Sesión iniciada correctamente' });
         router.replace('/feed');
       }
-          } catch (error) {
-                // Este catch es por errores de RED, no de credenciales:
-                // backend apagado, IP mal escrita, celular sin wifi, etc.
-                Toast.show({ type: 'error', text1: "No se pudo conectar con el servidor. Verifica tu conexión." });
-              } finally {
-                setLoading(false); // pase lo que pase, apaga el spinner al final
-              }
-            };
+    } catch (error) {
+      // Este catch es por errores de RED, no de credenciales:
+      // backend apagado, IP mal escrita, celular sin wifi, etc.
+      Toast.show({ type: 'error', text1: "No se pudo conectar con el servidor. Verifica tu conexión." });
+    } finally {
+      setLoading(false); // pase lo que pase, apaga el spinner al final
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar translucent={false} backgroundColor="#000" />
@@ -125,12 +149,13 @@ useEffect(() => {
           Inicia sesión con tú correo electrónico con el que te registraste.
         </Text>
 
-        {/* Input correo */}
+        {/* Input correo: solo letras, números y . _ + - @ */}
         <Input
           label="Correo electrónico"
           keyboardType="email-address"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(texto) => setEmail(limpiarCorreo(texto))}
+          maxLength={LIMITS.email.max}
           icon={
             <IconAlternateEmail
               width={24}
@@ -143,12 +168,13 @@ useEffect(() => {
           }
         />
 
-        {/* Input contraseña */}
+        {/* Input contraseña (solo con tope de largo) */}
         <Input
           label="Contraseña"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          maxLength={LIMITS.password.max}
           icon={
             <IconLock width={24} height={24} fill={colors.primaryDisabled} />
           }
@@ -178,22 +204,6 @@ useEffect(() => {
           onPress={handleLogin}
           loading={loading}
         />
-
-        {/* ══════════════════════════════════════════════════════════ */}
-        {/* 🧪 BOTÓN TEMPORAL DE PRUEBA — BORRAR ANTES DE PUBLICAR 🧪  */}
-        {/* Resetea la bandera de "primer ingreso" para poder probar  */}
-        {/* el confeti y el toast de bienvenida las veces que quieras */}
-        {/* ══════════════════════════════════════════════════════════ */}
-        <Pressable
-          onPress={async () => {
-            await AsyncStorage.removeItem('yaHaIniciadoSesion');
-            Toast.show({ type: 'info', text1: 'Bandera de primer ingreso reseteada 🧪' });
-          }}
-          style={styles.debugBtn}
-        >
-          <Text style={styles.debugBtnText}>🧪 Resetear "primer ingreso" (debug)</Text>
-        </Pressable>
-        {/* ══════════════════════ FIN BOTÓN TEMPORAL ═══════════════════ */}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -288,22 +298,5 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: 500,
     fontFamily: "Poppins_700Bold",
-  },
-
-  // 🧪 ESTILOS TEMPORALES DE DEBUG — BORRAR JUNTO CON EL BOTÓN DE ARRIBA 🧪
-  debugBtn: {
-    marginTop: spacing.lg,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    backgroundColor: '#fffbeb',
-  },
-  debugBtnText: {
-    fontSize: fontSizes.body3,
-    color: '#b45309',
-    fontFamily: "Poppins_400Regular",
   },
 });

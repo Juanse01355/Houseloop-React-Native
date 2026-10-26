@@ -179,7 +179,8 @@ export default function ProfileScreen() {
         <View style={styles.userSection}>
           <Avatar uri={usuario.foto} size="xxl" />
 
-          <Text style={styles.userName}>
+          {/* Una sola línea: si el nombre es largo se corta con "..." */}
+          <Text style={styles.userName} numberOfLines={1}>
             {usuario.nombre}
           </Text>
 
@@ -190,7 +191,8 @@ export default function ProfileScreen() {
               fill={colors.primary}
             />
 
-            <Text style={styles.userEmail}>
+            {/* flexShrink: 1 deja que el correo se achique y se corte con "..." */}
+            <Text style={styles.userEmail} numberOfLines={1}>
               {usuario.correo}
             </Text>
           </View>
@@ -340,7 +342,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
 
+  // maxWidth: "100%" evita que el nombre sea más ancho que la pantalla
   userName: {
+    maxWidth: "100%",
+    textAlign: "center",
     fontSize: fontSizes.h2,
     fontWeight: fontWeights.bold,
     color: darkColors.titles,
@@ -349,6 +354,7 @@ const styles = StyleSheet.create({
   },
 
   emailRow: {
+    maxWidth: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
@@ -356,6 +362,7 @@ const styles = StyleSheet.create({
   },
 
   userEmail: {
+    flexShrink: 1,
     fontSize: fontSizes.body1,
     color: darkColors.typography,
     fontFamily: "Poppins_400Regular",
