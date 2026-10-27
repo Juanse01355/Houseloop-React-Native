@@ -15,6 +15,7 @@
 
 import Avatar from "@/components/ui/Avatar";
 import { ButtonPrimary } from "@/components/ui/Button";
+import ModalFrame from "@/components/ui/ModalFrame";
 import SlideToConfirm from "@/components/ui/SlideToConfirm";
 import { BASE_URL } from "@/config/api";
 import {
@@ -229,6 +230,10 @@ export default function DetailScreen() {
   // Galería de fotos
   const [galeriaVisible, setGaleriaVisible] = useState(false);
   const [indiceFoto, setIndiceFoto] = useState(0);
+  // Ancho real de la galería. En web el modal se limita a la columna de
+  // 430 px, así que cada foto debe medir ese ancho y no el de la ventana.
+  // Se actualiza solo con onLayout cuando la galería se dibuja.
+  const [anchoGaleria, setAnchoGaleria] = useState(width);
 
   // Ventana para cambiar el estado (solo la ve el dueño)
   const [estadoVisible, setEstadoVisible] = useState(false);
@@ -831,49 +836,52 @@ export default function DetailScreen() {
             onPress={() => !eliminando && setEliminarVisible(false)}
           />
 
-          <View
-            style={[
-              styles.estadoSheet,
-              { paddingBottom: insets.bottom + spacing.lg },
-            ]}
-          >
-            <View style={styles.estadoHandle} />
-
+          {/* ModalFrame limita la hoja a la columna de 430 px en web */}
+          <ModalFrame style={{ justifyContent: "flex-end" }}>
             <View
               style={[
-                styles.estadoBadge,
-                { backgroundColor: COLOR_ELIMINAR + "33" },
+                styles.estadoSheet,
+                { paddingBottom: insets.bottom + spacing.lg },
               ]}
             >
-              <IconDelete
-                width={scale(28)}
-                height={scale(28)}
-                fill={COLOR_ELIMINAR}
-              />
-            </View>
+              <View style={styles.estadoHandle} />
 
-            <Text style={styles.estadoTitulo}>¿Eliminar esta propiedad?</Text>
-            <Text style={styles.estadoSubtitulo}>
-              Esta acción no se puede deshacer. Desliza para confirmar.
-            </Text>
+              <View
+                style={[
+                  styles.estadoBadge,
+                  { backgroundColor: COLOR_ELIMINAR + "33" },
+                ]}
+              >
+                <IconDelete
+                  width={scale(28)}
+                  height={scale(28)}
+                  fill={COLOR_ELIMINAR}
+                />
+              </View>
 
-            <View style={styles.eliminarSlider}>
-              <SlideToConfirm
-                text="Desliza para eliminar"
-                loadingText="Eliminando..."
-                color={COLOR_ELIMINAR}
-                loading={eliminando}
-                onConfirm={confirmarEliminacion}
-                icon={
-                  <IconDelete
-                    width={scale(22)}
-                    height={scale(22)}
-                    fill={darkColors.white}
-                  />
-                }
-              />
+              <Text style={styles.estadoTitulo}>¿Eliminar esta propiedad?</Text>
+              <Text style={styles.estadoSubtitulo}>
+                Esta acción no se puede deshacer. Desliza para confirmar.
+              </Text>
+
+              <View style={styles.eliminarSlider}>
+                <SlideToConfirm
+                  text="Desliza para eliminar"
+                  loadingText="Eliminando..."
+                  color={COLOR_ELIMINAR}
+                  loading={eliminando}
+                  onConfirm={confirmarEliminacion}
+                  icon={
+                    <IconDelete
+                      width={scale(22)}
+                      height={scale(22)}
+                      fill={darkColors.white}
+                    />
+                  }
+                />
+              </View>
             </View>
-          </View>
+          </ModalFrame>
         </View>
       </Modal>
 
@@ -891,67 +899,70 @@ export default function DetailScreen() {
             onPress={() => !guardandoEstado && setEstadoVisible(false)}
           />
 
-          <View
-            style={[
-              styles.estadoSheet,
-              { paddingBottom: insets.bottom + spacing.lg },
-            ]}
-          >
-            <View style={styles.estadoHandle} />
+          {/* ModalFrame limita la hoja a la columna de 430 px en web */}
+          <ModalFrame style={{ justifyContent: "flex-end" }}>
             <View
               style={[
-                styles.estadoBadge,
-                { backgroundColor: estadoActual.color + "33" },
+                styles.estadoSheet,
+                { paddingBottom: insets.bottom + spacing.lg },
               ]}
             >
-              <estadoActual.Icono
-                width={scale(28)}
-                height={scale(28)}
-                fill={estadoActual.color}
-              />
+              <View style={styles.estadoHandle} />
+              <View
+                style={[
+                  styles.estadoBadge,
+                  { backgroundColor: estadoActual.color + "33" },
+                ]}
+              >
+                <estadoActual.Icono
+                  width={scale(28)}
+                  height={scale(28)}
+                  fill={estadoActual.color}
+                />
+              </View>
+
+              <Text style={styles.estadoTitulo}>¿Cambiar la disponibilidad?</Text>
+              <Text style={styles.estadoSubtitulo}>
+                Elige cómo quieres mostrar esta propiedad a los demás usuarios.
+              </Text>
+
+              <View style={styles.estadoOpciones}>
+                {Object.entries(ESTADOS).map(([valor, info]) => {
+                  const seleccionado = valor === propiedad.estado;
+                  return (
+                    <Pressable
+                      key={valor}
+                      style={[
+                        styles.estadoOpcion,
+                        seleccionado && { borderColor: info.color },
+                      ]}
+                      disabled={guardandoEstado}
+                      onPress={() => cambiarEstado(valor)}
+                    >
+                      <info.Icono
+                        width={scale(24)}
+                        height={scale(24)}
+                        fill={info.color}
+                      />
+                      <Text style={styles.estadoOpcionTexto}>{info.texto}</Text>
+                      {seleccionado && (
+                        <Text style={[styles.estadoCheck, { color: info.color }]}>
+                          ✓
+                        </Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {guardandoEstado && (
+                <ActivityIndicator
+                  style={styles.estadoCargando}
+                  color={colors.primary}
+                />
+              )}
             </View>
-
-            <Text style={styles.estadoTitulo}>¿Cambiar la disponibilidad?</Text>
-            <Text style={styles.estadoSubtitulo}>
-              Elige cómo quieres mostrar esta propiedad a los demás usuarios.
-            </Text>
-
-            <View style={styles.estadoOpciones}>
-              {Object.entries(ESTADOS).map(([valor, info]) => {
-                const seleccionado = valor === propiedad.estado;
-                return (
-                  <Pressable
-                    key={valor}
-                    style={[
-                      styles.estadoOpcion,
-                      seleccionado && { borderColor: info.color },
-                    ]}
-                    disabled={guardandoEstado}
-                    onPress={() => cambiarEstado(valor)}
-                  >
-                    <info.Icono
-                      width={scale(24)}
-                      height={scale(24)}
-                      fill={info.color}
-                    />
-                    <Text style={styles.estadoOpcionTexto}>{info.texto}</Text>
-                    {seleccionado && (
-                      <Text style={[styles.estadoCheck, { color: info.color }]}>
-                        ✓
-                      </Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {guardandoEstado && (
-              <ActivityIndicator
-                style={styles.estadoCargando}
-                color={colors.primary}
-              />
-            )}
-          </View>
+          </ModalFrame>
         </View>
       </Modal>
 
@@ -961,47 +972,52 @@ export default function DetailScreen() {
         animationType="fade"
         onRequestClose={() => setGaleriaVisible(false)}
       >
+        {/* El fondo negro cubre toda la ventana; el contenido va dentro
+            de ModalFrame, que lo limita a la columna de 430 px en web */}
         <View style={styles.galeria}>
-          <Pressable
-            style={styles.galeriaCerrar}
-            onPress={() => setGaleriaVisible(false)}
-            hitSlop={8}
-          >
-            <Text style={styles.galeriaCerrarText}>✕</Text>
-          </Pressable>
+          <ModalFrame style={{ justifyContent: "center" }}>
+            <Pressable
+              style={styles.galeriaCerrar}
+              onPress={() => setGaleriaVisible(false)}
+              hitSlop={8}
+            >
+              <Text style={styles.galeriaCerrarText}>✕</Text>
+            </Pressable>
 
-          {fotos.length === 0 ? (
-            <View style={styles.centrado}>
-              <Text style={styles.errorText}>
-                Esta propiedad no tiene fotos
-              </Text>
-            </View>
-          ) : (
-            <>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(e) =>
-                  setIndiceFoto(
-                    Math.round(e.nativeEvent.contentOffset.x / width),
-                  )
-                }
-              >
-                {fotos.map((url) => (
-                  <Image
-                    key={url}
-                    source={{ uri: url }}
-                    style={{ width, height: "100%" }}
-                    resizeMode="contain"
-                  />
-                ))}
-              </ScrollView>
-              <Text style={styles.galeriaContador}>
-                {indiceFoto + 1} / {fotos.length}
-              </Text>
-            </>
-          )}
+            {fotos.length === 0 ? (
+              <View style={styles.centrado}>
+                <Text style={styles.errorText}>
+                  Esta propiedad no tiene fotos
+                </Text>
+              </View>
+            ) : (
+              <>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onLayout={(e) => setAnchoGaleria(e.nativeEvent.layout.width)}
+                  onMomentumScrollEnd={(e) =>
+                    setIndiceFoto(
+                      Math.round(e.nativeEvent.contentOffset.x / anchoGaleria),
+                    )
+                  }
+                >
+                  {fotos.map((url) => (
+                    <Image
+                      key={url}
+                      source={{ uri: url }}
+                      style={{ width: anchoGaleria, height: "100%" }}
+                      resizeMode="contain"
+                    />
+                  ))}
+                </ScrollView>
+                <Text style={styles.galeriaContador}>
+                  {indiceFoto + 1} / {fotos.length}
+                </Text>
+              </>
+            )}
+          </ModalFrame>
         </View>
       </Modal>
     </View>

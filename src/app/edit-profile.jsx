@@ -5,6 +5,7 @@
 import IconSave from '../../assets/icons/icon-save.svg';
 import Avatar from '@/components/ui/Avatar';
 import Input from '@/components/ui/Input';
+import ModalFrame from '@/components/ui/ModalFrame';
 import { BASE_URL } from '@/config/api';
 import { mostrarToast } from '@/config/toast-config';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
@@ -396,34 +397,37 @@ export default function EditProfileScreen() {
             onPress={() => setModalSalirVisible(false)}
           />
 
-          <View style={[styles.salirSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
-            <View style={styles.salirHandle} />
+          {/* ModalFrame limita la hoja a la columna de 430 px en web */}
+          <ModalFrame style={{ justifyContent: 'flex-end' }}>
+            <View style={[styles.salirSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+              <View style={styles.salirHandle} />
 
-            <View style={styles.salirBadge}>
-              <IconSave width={28} height={28} fill={colors.primary} />
+              <View style={styles.salirBadge}>
+                <IconSave width={28} height={28} fill={colors.primary} />
+              </View>
+
+              <Text style={styles.salirTitulo}>¿Quieres guardar los cambios?</Text>
+              <Text style={styles.salirSubtitulo}>
+                Si sales ahora, perderás los cambios que hiciste en tu perfil.
+              </Text>
+
+              <View style={styles.salirAcciones}>
+                <Pressable style={styles.btnPrimary} onPress={guardarYSalir}>
+                  <Text style={styles.btnPrimaryText}>Guardar cambios</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.btnOutline}
+                  onPress={() => {
+                    setModalSalirVisible(false);
+                    router.back();
+                  }}
+                >
+                  <Text style={styles.btnOutlineText}>Salir sin guardar</Text>
+                </Pressable>
+              </View>
             </View>
-
-            <Text style={styles.salirTitulo}>¿Quieres guardar los cambios?</Text>
-            <Text style={styles.salirSubtitulo}>
-              Si sales ahora, perderás los cambios que hiciste en tu perfil.
-            </Text>
-
-            <View style={styles.salirAcciones}>
-              <Pressable style={styles.btnPrimary} onPress={guardarYSalir}>
-                <Text style={styles.btnPrimaryText}>Guardar cambios</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.btnOutline}
-                onPress={() => {
-                  setModalSalirVisible(false);
-                  router.back();
-                }}
-              >
-                <Text style={styles.btnOutlineText}>Salir sin guardar</Text>
-              </Pressable>
-            </View>
-          </View>
+          </ModalFrame>
         </View>
       </Modal>
     </View>

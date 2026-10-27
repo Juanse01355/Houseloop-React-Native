@@ -21,6 +21,7 @@ import {
   spacing,
 } from "@/constants/theme-houseloop";
 import Input from "@/components/ui/Input";
+import ModalFrame from "@/components/ui/ModalFrame";
 import IconArrowDown from "../../../assets/icons/icon-arrow-down.svg";
 
 const TIPOS_INMUEBLE = ["apartamento", "casa", "local", "lote"];
@@ -83,142 +84,147 @@ export default function FilterBottomSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.handle} />
+        {/* ModalFrame limita la hoja a la columna de 430 px en web. Va ENTRE
+            el fondo (que cierra al tocarlo) y la hoja (que se traga el toque):
+            deja pasar los toques de afuera hacia el fondo. */}
+        <ModalFrame style={{ justifyContent: "flex-end" }}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.handle} />
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>Filtrar propiedades</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.title}>Filtrar propiedades</Text>
 
-            {/* ── Precio ── */}
-            <Text style={styles.sectionLabel}>Precio</Text>
-            <View style={styles.priceRow}>
-              <View style={styles.priceInputWrapper}>
-                <Input
-                  label="Mínimo"
-                  keyboardType="numeric"
-                  maxLength={9}
-                  value={filtros.precioMin}
-                  onChangeText={(text) =>
-                    setFiltros((prev) => ({
-                      ...prev,
-                      precioMin: text.replace(/[^0-9]/g, "").slice(0, 9),
-                    }))
-                  }
-                />
+              {/* ── Precio ── */}
+              <Text style={styles.sectionLabel}>Precio</Text>
+              <View style={styles.priceRow}>
+                <View style={styles.priceInputWrapper}>
+                  <Input
+                    label="Mínimo"
+                    keyboardType="numeric"
+                    maxLength={9}
+                    value={filtros.precioMin}
+                    onChangeText={(text) =>
+                      setFiltros((prev) => ({
+                        ...prev,
+                        precioMin: text.replace(/[^0-9]/g, "").slice(0, 9),
+                      }))
+                    }
+                  />
+                </View>
+                <View style={styles.priceInputWrapper}>
+                  <Input
+                    label="Máximo"
+                    keyboardType="numeric"
+                    maxLength={9}
+                    value={filtros.precioMax}
+                    onChangeText={(text) =>
+                      setFiltros((prev) => ({
+                        ...prev,
+                        precioMax: text.replace(/[^0-9]/g, "").slice(0, 9),
+                      }))
+                    }
+                  />
+                </View>
               </View>
-              <View style={styles.priceInputWrapper}>
-                <Input
-                  label="Máximo"
-                  keyboardType="numeric"
-                  maxLength={9}
-                  value={filtros.precioMax}
-                  onChangeText={(text) =>
-                    setFiltros((prev) => ({
-                      ...prev,
-                      precioMax: text.replace(/[^0-9]/g, "").slice(0, 9),
-                    }))
-                  }
-                />
-              </View>
-            </View>
 
-            <View style={styles.chipsWrap}>
-              {RANGOS_PRECIO.map((rango) => (
-                <Pressable
-                  key={rango.label}
-                  style={styles.rangeChip}
-                  onPress={() => aplicarRangoRapido(rango)}
-                >
-                  <Text style={styles.rangeChipText}>{rango.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* ── Tipo de inmueble ── */}
-            <Text style={styles.sectionLabel}>Tipo de inmueble</Text>
-            <Pressable
-              style={styles.selectField}
-              onPress={() => setTipoAbierto(!tipoAbierto)}
-            >
-              <Text style={styles.selectFieldText}>
-                {filtros.tipoInmueble || "Cualquiera"}
-              </Text>
-              <View style={styles.selectIconWrapper}>
-                <IconArrowDown width={16} height={16} fill={colors.typography} />
-              </View>
-            </Pressable>
-
-            {tipoAbierto && (
-              <View style={styles.optionsList}>
-                <Pressable
-                  style={styles.optionItem}
-                  onPress={() => {
-                    setFiltros((prev) => ({ ...prev, tipoInmueble: null }));
-                    setTipoAbierto(false);
-                  }}
-                >
-                  <Text style={styles.optionText}>Cualquiera</Text>
-                </Pressable>
-                {TIPOS_INMUEBLE.map((tipo) => (
+              <View style={styles.chipsWrap}>
+                {RANGOS_PRECIO.map((rango) => (
                   <Pressable
-                    key={tipo}
+                    key={rango.label}
+                    style={styles.rangeChip}
+                    onPress={() => aplicarRangoRapido(rango)}
+                  >
+                    <Text style={styles.rangeChipText}>{rango.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* ── Tipo de inmueble ── */}
+              <Text style={styles.sectionLabel}>Tipo de inmueble</Text>
+              <Pressable
+                style={styles.selectField}
+                onPress={() => setTipoAbierto(!tipoAbierto)}
+              >
+                <Text style={styles.selectFieldText}>
+                  {filtros.tipoInmueble || "Cualquiera"}
+                </Text>
+                <View style={styles.selectIconWrapper}>
+                  <IconArrowDown width={16} height={16} fill={colors.typography} />
+                </View>
+              </Pressable>
+
+              {tipoAbierto && (
+                <View style={styles.optionsList}>
+                  <Pressable
                     style={styles.optionItem}
                     onPress={() => {
-                      setFiltros((prev) => ({ ...prev, tipoInmueble: tipo }));
+                      setFiltros((prev) => ({ ...prev, tipoInmueble: null }));
                       setTipoAbierto(false);
                     }}
                   >
-                    <Text style={styles.optionText}>{tipo}</Text>
+                    <Text style={styles.optionText}>Cualquiera</Text>
                   </Pressable>
-                ))}
-              </View>
-            )}
+                  {TIPOS_INMUEBLE.map((tipo) => (
+                    <Pressable
+                      key={tipo}
+                      style={styles.optionItem}
+                      onPress={() => {
+                        setFiltros((prev) => ({ ...prev, tipoInmueble: tipo }));
+                        setTipoAbierto(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{tipo}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
 
-            {/* ── Disponibilidad ── */}
-            <Text style={styles.sectionLabel}>Disponibilidad</Text>
-            <Pressable
-              style={styles.selectField}
-              onPress={() => setEstadoAbierto(!estadoAbierto)}
-            >
-              <Text style={styles.selectFieldText}>
-                {estadoSeleccionado?.label || "Cualquiera"}
-              </Text>
-              <View style={styles.selectIconWrapper}>
-                <IconArrowDown width={16} height={16} fill={colors.typography} />
-              </View>
-            </Pressable>
+              {/* ── Disponibilidad ── */}
+              <Text style={styles.sectionLabel}>Disponibilidad</Text>
+              <Pressable
+                style={styles.selectField}
+                onPress={() => setEstadoAbierto(!estadoAbierto)}
+              >
+                <Text style={styles.selectFieldText}>
+                  {estadoSeleccionado?.label || "Cualquiera"}
+                </Text>
+                <View style={styles.selectIconWrapper}>
+                  <IconArrowDown width={16} height={16} fill={colors.typography} />
+                </View>
+              </Pressable>
 
-            {estadoAbierto && (
-              <View style={styles.optionsList}>
-                <Pressable
-                  style={styles.optionItem}
-                  onPress={() => {
-                    setFiltros((prev) => ({ ...prev, estado: null }));
-                    setEstadoAbierto(false);
-                  }}
-                >
-                  <Text style={styles.optionText}>Cualquiera</Text>
-                </Pressable>
-                {DISPONIBILIDADES.map((d) => (
+              {estadoAbierto && (
+                <View style={styles.optionsList}>
                   <Pressable
-                    key={d.value}
                     style={styles.optionItem}
                     onPress={() => {
-                      setFiltros((prev) => ({ ...prev, estado: d.value }));
+                      setFiltros((prev) => ({ ...prev, estado: null }));
                       setEstadoAbierto(false);
                     }}
                   >
-                    <Text style={styles.optionText}>{d.label}</Text>
+                    <Text style={styles.optionText}>Cualquiera</Text>
                   </Pressable>
-                ))}
-              </View>
-            )}
-          </ScrollView>
+                  {DISPONIBILIDADES.map((d) => (
+                    <Pressable
+                      key={d.value}
+                      style={styles.optionItem}
+                      onPress={() => {
+                        setFiltros((prev) => ({ ...prev, estado: d.value }));
+                        setEstadoAbierto(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{d.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
 
-          <Pressable style={styles.searchBtn} onPress={handleBuscar}>
-            <Text style={styles.searchBtnText}>Buscar</Text>
+            <Pressable style={styles.searchBtn} onPress={handleBuscar}>
+              <Text style={styles.searchBtnText}>Buscar</Text>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </ModalFrame>
       </Pressable>
     </Modal>
   );

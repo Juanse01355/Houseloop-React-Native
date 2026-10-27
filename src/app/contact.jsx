@@ -39,7 +39,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -66,6 +65,8 @@ import IconMessage from '../../assets/icons/icon-message.svg'; // "Tu consulta"
 import TopNav from '@/components/ui/TopNav';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
+import ModalFrame from '@/components/ui/ModalFrame';
+import TerminosSheet from '@/components/ui/TerminosSheet';
 
 const MAX_MENSAJE = 300;
 
@@ -196,39 +197,6 @@ function CampoTelefono({ etiqueta, value, onChangeText }) {
   );
 }
 
-// ── Hoja inferior con los términos y condiciones ──
-function TerminosSheet({ visible, onClose, onAceptar }) {
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.dropOverlay}>
-        {/* Fondo oscuro: tocarlo cierra la hoja */}
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-
-        <View style={[styles.dropSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-          <View style={styles.dropHandle} />
-          <Text style={styles.dropTitulo}>Términos y condiciones</Text>
-
-          <ScrollView style={{ maxHeight: height * 0.5 }} showsVerticalScrollIndicator={false}>
-            {TERMINOS.map((t) => (
-              <View key={t.titulo} style={styles.terminoItem}>
-                <Text style={styles.terminoTitulo}>{t.titulo}</Text>
-                <Text style={styles.terminoTexto}>{t.texto}</Text>
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={styles.terminosBtn}>
-            <ButtonPrimary text="Aceptar" onPress={onAceptar} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ── Hoja inferior de confirmación ──
 // Mismo estilo que la hoja "Cambiar disponibilidad" de detail.jsx:
 // círculo suave con ícono, título, subtítulo y botón.
@@ -241,23 +209,27 @@ function ExitoSheet({ visible, onClose, destinatario }) {
         {/* Fondo oscuro: tocarlo cierra la hoja */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
 
-        <View style={[styles.exitoSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
-          <View style={styles.exitoHandle} />
+        {/* Marco: en web limita la hoja al ancho de la app (430 px).
+            El justifyContent va en línea para no tocar los estilos. */}
+        <ModalFrame style={{ justifyContent: 'flex-end' }}>
+          <View style={[styles.exitoSheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+            <View style={styles.exitoHandle} />
 
-          <View style={[styles.exitoBadge, { backgroundColor: COLOR_EXITO + '33' }]}>
-            <MaterialIcons name="check" size={scale(28)} color={COLOR_EXITO} />
+            <View style={[styles.exitoBadge, { backgroundColor: COLOR_EXITO + '33' }]}>
+              <MaterialIcons name="check" size={scale(28)} color={COLOR_EXITO} />
+            </View>
+
+            <Text style={styles.exitoTitulo}>¡Información enviada!</Text>
+            <Text style={styles.exitoSubtitulo}>
+              Tu información se envió correctamente. Cuando {destinatario} la vea, se pondrá en
+              contacto contigo.
+            </Text>
+
+            <View style={styles.exitoBoton}>
+              <ButtonPrimary text="Ok" onPress={onClose} />
+            </View>
           </View>
-
-          <Text style={styles.exitoTitulo}>¡Información enviada!</Text>
-          <Text style={styles.exitoSubtitulo}>
-            Tu información se envió correctamente. Cuando {destinatario} la vea, se pondrá en
-            contacto contigo.
-          </Text>
-
-          <View style={styles.exitoBoton}>
-            <ButtonPrimary text="Ok" onPress={onClose} />
-          </View>
-        </View>
+        </ModalFrame>
       </View>
     </Modal>
   );
@@ -291,7 +263,12 @@ function Reproductor({ uri, onClose }) {
 function VideoModal({ visible, uri, onClose }) {
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
-      {visible && uri ? <Reproductor uri={uri} onClose={onClose} /> : null}
+      {/* Fondo negro en toda la ventana; el video queda dentro de la columna de la app (430 px) */}
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <ModalFrame>
+          {visible && uri ? <Reproductor uri={uri} onClose={onClose} /> : null}
+        </ModalFrame>
+      </View>
     </Modal>
   );
 }
@@ -772,9 +749,10 @@ export default function ContactScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Hoja de términos y condiciones ── */}
+      {/* ── Hoja de términos y condiciones (con el texto propio de contacto) ── */}
       <TerminosSheet
         visible={verTerminos}
+        terminos={TERMINOS}
         onClose={() => setVerTerminos(false)}
         onAceptar={() => {
           setTerminos(true);

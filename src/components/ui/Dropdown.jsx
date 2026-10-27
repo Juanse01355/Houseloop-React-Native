@@ -27,6 +27,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import ModalFrame from '@/components/ui/ModalFrame';
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
 
 export default function Dropdown({ label, titulo, valor, opciones, opcionVacia, onChange }) {
@@ -80,26 +81,30 @@ export default function Dropdown({ label, titulo, valor, opciones, opcionVacia, 
           {/* Fondo oscuro: tocarlo cierra la lista */}
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setAbierto(false)} />
 
-          <View style={[styles.dropSheet, { paddingBottom: insets.bottom + spacing.md }]}>
-            <View style={styles.dropHandle} />
-            <Text style={styles.dropTitulo}>{titulo || label}</Text>
+          {/* Marco: en web limita la hoja al ancho de la app (430 px).
+              El justifyContent va en línea para no tocar los estilos de abajo. */}
+          <ModalFrame style={{ justifyContent: 'flex-end' }}>
+            <View style={[styles.dropSheet, { paddingBottom: insets.bottom + spacing.md }]}>
+              <View style={styles.dropHandle} />
+              <Text style={styles.dropTitulo}>{titulo || label}</Text>
 
-            {lista.map((op) => {
-              const activa = op.value === valor;
-              return (
-                <Pressable
-                  key={op.value || op.label}
-                  style={styles.dropOpcion}
-                  onPress={() => elegir(op.value)}
-                >
-                  <Text style={[styles.dropOpcionTexto, activa && styles.dropOpcionActiva]}>
-                    {op.label}
-                  </Text>
-                  {activa && <MaterialIcons name="check" size={20} color={colors.primary} />}
-                </Pressable>
-              );
-            })}
-          </View>
+              {lista.map((op) => {
+                const activa = op.value === valor;
+                return (
+                  <Pressable
+                    key={op.value || op.label}
+                    style={styles.dropOpcion}
+                    onPress={() => elegir(op.value)}
+                  >
+                    <Text style={[styles.dropOpcionTexto, activa && styles.dropOpcionActiva]}>
+                      {op.label}
+                    </Text>
+                    {activa && <MaterialIcons name="check" size={20} color={colors.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ModalFrame>
         </View>
       </Modal>
     </>

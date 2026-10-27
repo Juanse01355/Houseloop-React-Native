@@ -30,21 +30,19 @@ import {
   TextInput,
   StyleSheet,
   Alert,
-  Modal,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
 import TopNav from '@/components/ui/TopNav';
+import TerminosSheet from '@/components/ui/TerminosSheet';
 import UbicacionPicker from '@/components/map/UbicacionPicker';
 import { BASE_URL } from "@/config/api"; // trae la URL de tu backend
 import { mostrarToast } from '@/config/toast-config';
@@ -130,83 +128,6 @@ const CIUDADES = [{ label: 'San Juan de Pasto, Nariño', value: 'pasto' }];
 
 // Quita el margen de abajo del Input: el espacio entre campos lo da el "gap" de la sección
 const SIN_MARGEN = { marginBottom: 0 };
-
-// ── Términos y condiciones (los mismos del registro, cámbialos por el definitivo) ──
-const TERMINOS = [
-  {
-    titulo: '1. Aceptación',
-    texto:
-      'Al crear una cuenta en HouseLoop aceptas estos términos y condiciones. Si no estás de acuerdo con alguno de ellos, no podrás usar la plataforma.',
-  },
-  {
-    titulo: '2. Tu cuenta',
-    texto:
-      'Debes registrar datos reales y mantenerlos actualizados. Eres responsable de la confidencialidad de tu contraseña y de todo lo que ocurra desde tu cuenta.',
-  },
-  {
-    titulo: '3. Uso de la plataforma',
-    texto:
-      'HouseLoop permite publicar, buscar y contactar propiedades en Colombia. No está permitido publicar información falsa, contenido ofensivo, fotos o videos que no sean tuyos, ni usar la app para actividades ilegales.',
-  },
-  {
-    titulo: '4. Publicaciones',
-    texto:
-      'Eres el único responsable de la veracidad de lo que publicas (precio, ubicación, fotos y descripción). HouseLoop puede retirar publicaciones que incumplan estas normas.',
-  },
-  {
-    titulo: '5. Datos personales',
-    texto:
-      'Usamos tu nombre, correo y teléfono solo para el funcionamiento de la plataforma y para que otros usuarios puedan contactarte cuando tú lo permitas. Tratamos tus datos conforme a la normativa colombiana de protección de datos personales (Ley 1581 de 2012) y no los vendemos a terceros.',
-  },
-  {
-    titulo: '6. Responsabilidad',
-    texto:
-      'HouseLoop es un intermediario de contacto. No participa en pagos, contratos ni visitas entre usuarios, y no se hace responsable por los acuerdos que ustedes realicen.',
-  },
-  {
-    titulo: '7. Suspensión de la cuenta',
-    texto:
-      'Podemos suspender o eliminar cuentas que incumplan estos términos. También puedes pedir que eliminemos tu cuenta escribiendo a soporte@houseloop.co.',
-  },
-  {
-    titulo: '8. Cambios',
-    texto:
-      'Podemos actualizar estos términos. Cuando haya cambios importantes te lo informaremos dentro de la app.',
-  },
-];
-
-// ── Hoja inferior con los términos y condiciones ──
-function TerminosSheet({ visible, onClose, onAceptar }) {
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.sheetOverlay}>
-        {/* Fondo oscuro: tocarlo cierra la hoja */}
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.md }]}>
-          <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitulo}>Términos y condiciones</Text>
-
-          <ScrollView style={{ maxHeight: height * 0.5 }} showsVerticalScrollIndicator={false}>
-            {TERMINOS.map((t) => (
-              <View key={t.titulo} style={styles.terminoItem}>
-                <Text style={styles.terminoTitulo}>{t.titulo}</Text>
-                <Text style={styles.terminoTexto}>{t.texto}</Text>
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={styles.sheetBtn}>
-            <ButtonPrimary text="Aceptar" onPress={onAceptar} />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 // ── Tipos MIME según la extensión del archivo ──
 // En el celular hay que decirle al FormData de qué tipo es cada archivo.
@@ -1080,53 +1001,5 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.h3,
     fontFamily: 'Poppins_700Bold',
     color: colors.primary,
-  },
-
-  // ── Hoja de términos y condiciones ──
-  sheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radii.full,
-    backgroundColor: colors.border,
-    marginBottom: spacing.md,
-  },
-  sheetTitulo: {
-    fontSize: fontSizes.h3,
-    fontWeight: '700',
-    color: colors.titles,
-    fontFamily: 'Poppins_700Bold',
-    marginBottom: spacing.md,
-  },
-  terminoItem: {
-    marginBottom: spacing.md,
-  },
-  terminoTitulo: {
-    fontSize: fontSizes.body2,
-    fontWeight: '700',
-    color: colors.titles,
-    fontFamily: 'Poppins_400Regular',
-    marginBottom: spacing.xs,
-  },
-  terminoTexto: {
-    fontSize: fontSizes.body3,
-    color: colors.typography,
-    fontFamily: 'Poppins_400Regular',
-    lineHeight: 20,
-  },
-  sheetBtn: {
-    marginTop: spacing.md,
   },
 });

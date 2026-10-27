@@ -17,6 +17,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LocationPickerMap from "@/components/map/LocationPickerMap";
 import { ButtonPrimary } from "@/components/ui/Button";
+import ModalFrame from "@/components/ui/ModalFrame";
 import {
   colors,
   darkColors,
@@ -154,61 +155,65 @@ export default function UbicacionPicker({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* El fondo oscuro cubre toda la ventana; el contenido va dentro de
+          ModalFrame, que lo limita a la columna de 430 px en web */}
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Text style={styles.titulo}>Ubicación actual</Text>
-          <Text style={styles.subtitulo}>
-            Marcamos donde estás ahora. Si el pin no quedó justo en el inmueble,
-            arrástralo o toca el mapa para ajustarlo.
-          </Text>
-        </View>
-
-        <View style={styles.mapa}>
-          {listo && (
-            <LocationPickerMap
-              centro={centro}
-              puntoInicial={puntoInicial}
-              onChange={setPunto}
-            />
-          )}
-        </View>
-
-        <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Text style={styles.estado}>
-            {buscando
-              ? `Afinando tu ubicación${precision != null ? ` (margen de ±${precision} m)` : "..."}`
-              : error
-                ? error
-                : punto
-                  ? precision != null
-                    ? precision > 30
-                      ? `Margen de ±${precision} m. Sal a un lugar abierto y toca "Usar mi ubicación actual" para mejorarla, o ajusta el pin.`
-                      : `Ubicación marcada con un margen de ±${precision} m. Revisa que el pin esté en el lugar correcto.`
-                    : "Ubicación marcada. Revisa que el pin esté en el lugar correcto."
-                  : "Toca el mapa para marcar la ubicación."}
-          </Text>
-
-          <Pressable
-            style={[styles.btnCancelar, buscando && styles.btnDeshabilitado]}
-            onPress={usarUbicacionActual}
-            disabled={buscando}
-            accessibilityRole="button"
-          >
-            <Text style={styles.btnCancelarTexto}>
-              {buscando ? "Buscando..." : "Usar mi ubicación actual"}
+        <ModalFrame>
+          <View style={styles.header}>
+            <Text style={styles.titulo}>Ubicación actual</Text>
+            <Text style={styles.subtitulo}>
+              Marcamos donde estás ahora. Si el pin no quedó justo en el inmueble,
+              arrástralo o toca el mapa para ajustarlo.
             </Text>
-          </Pressable>
+          </View>
 
-          <ButtonPrimary
-            text="Confirmar ubicación"
-            onPress={confirmar}
-            disabled={!punto}
-          />
+          <View style={styles.mapa}>
+            {listo && (
+              <LocationPickerMap
+                centro={centro}
+                puntoInicial={puntoInicial}
+                onChange={setPunto}
+              />
+            )}
+          </View>
 
-          <Pressable style={styles.btnCancelar} onPress={onClose} accessibilityRole="button">
-            <Text style={styles.btnCancelarTexto}>Cancelar</Text>
-          </Pressable>
-        </View>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+            <Text style={styles.estado}>
+              {buscando
+                ? `Afinando tu ubicación${precision != null ? ` (margen de ±${precision} m)` : "..."}`
+                : error
+                  ? error
+                  : punto
+                    ? precision != null
+                      ? precision > 30
+                        ? `Margen de ±${precision} m. Sal a un lugar abierto y toca "Usar mi ubicación actual" para mejorarla, o ajusta el pin.`
+                        : `Ubicación marcada con un margen de ±${precision} m. Revisa que el pin esté en el lugar correcto.`
+                      : "Ubicación marcada. Revisa que el pin esté en el lugar correcto."
+                    : "Toca el mapa para marcar la ubicación."}
+            </Text>
+
+            <Pressable
+              style={[styles.btnCancelar, buscando && styles.btnDeshabilitado]}
+              onPress={usarUbicacionActual}
+              disabled={buscando}
+              accessibilityRole="button"
+            >
+              <Text style={styles.btnCancelarTexto}>
+                {buscando ? "Buscando..." : "Usar mi ubicación actual"}
+              </Text>
+            </Pressable>
+
+            <ButtonPrimary
+              text="Confirmar ubicación"
+              onPress={confirmar}
+              disabled={!punto}
+            />
+
+            <Pressable style={styles.btnCancelar} onPress={onClose} accessibilityRole="button">
+              <Text style={styles.btnCancelarTexto}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </ModalFrame>
       </View>
     </Modal>
   );

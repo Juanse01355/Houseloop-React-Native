@@ -6,6 +6,7 @@
 // ============================================================
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/constants/theme-houseloop';
+import ModalFrame from '@/components/ui/ModalFrame';
 
 export default function AppModal({
   visible,
@@ -25,41 +26,48 @@ export default function AppModal({
       animationType="fade"
       onRequestClose={onRequestClose}
     >
+      {/* Fondo oscuro: cubre toda la ventana */}
       <View style={styles.modalOverlay}>
-        <View style={styles.modalBox}>
-          {icon && <View style={styles.checkCircle}>{icon}</View>}
+        {/* Marco: en web limita el contenido al ancho de la app (430 px) */}
+        <ModalFrame style={styles.modalCentro}>
+          <View style={styles.modalBox}>
+            {icon && <View style={styles.checkCircle}>{icon}</View>}
 
-          <Text style={styles.modalTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.modalSubtitle}>{subtitle}</Text> : null}
+            <Text style={styles.modalTitle}>{title}</Text>
+            {subtitle ? <Text style={styles.modalSubtitle}>{subtitle}</Text> : null}
 
-          <View style={styles.modalButtonsRow}>
-            {secondaryLabel && (
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnOutline]}
-                onPress={onSecondaryPress}
-              >
-                <Text style={styles.modalBtnOutlineText}>{secondaryLabel}</Text>
-              </Pressable>
-            )}
-            {primaryLabel && (
-              <Pressable
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
-                onPress={onPrimaryPress}
-              >
-                <Text style={styles.modalBtnPrimaryText}>{primaryLabel}</Text>
-              </Pressable>
-            )}
+            <View style={styles.modalButtonsRow}>
+              {secondaryLabel && (
+                <Pressable
+                  style={[styles.modalBtn, styles.modalBtnOutline]}
+                  onPress={onSecondaryPress}
+                >
+                  <Text style={styles.modalBtnOutlineText}>{secondaryLabel}</Text>
+                </Pressable>
+              )}
+              {primaryLabel && (
+                <Pressable
+                  style={[styles.modalBtn, styles.modalBtnPrimary]}
+                  onPress={onPrimaryPress}
+                >
+                  <Text style={styles.modalBtnPrimaryText}>{primaryLabel}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
+        </ModalFrame>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  // Solo el fondo oscuro; el centrado lo hace modalCentro (dentro del marco)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalCentro: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
