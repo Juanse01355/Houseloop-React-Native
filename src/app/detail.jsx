@@ -227,6 +227,12 @@ export default function DetailScreen() {
   const [usuarioId, setUsuarioId] = useState(null);
   const [isFocused, setIsFocused] = useState(true);
 
+  // Ancho real de la pantalla (medido con onLayout). En web la app vive en
+  // una columna de 430 px, así que el video debe medir ese ancho y no el de
+  // la ventana. Empieza con el ancho de la ventana y se corrige solo cuando
+  // la pantalla se dibuja.
+  const [anchoDetalle, setAnchoDetalle] = useState(width);
+
   // Galería de fotos
   const [galeriaVisible, setGaleriaVisible] = useState(false);
   const [indiceFoto, setIndiceFoto] = useState(0);
@@ -347,8 +353,9 @@ export default function DetailScreen() {
     .filter(Boolean)
     .join(", ");
 
-  // El video va como tarjeta con márgenes a los lados
-  const mediaWidth = width - spacing.md * 2;
+  // El video va como tarjeta con márgenes a los lados.
+  // Usa el ancho real de la pantalla (columna de 430 px en web).
+  const mediaWidth = anchoDetalle - spacing.md * 2;
   const aspecto = aspectoVideo || 0.82; // por defecto, si aún no se conoce
   // El alto sale de la proporción del video; se limita para que no pase de la pantalla
   const mediaHeight = Math.min(mediaWidth / aspecto, height * 0.85);
@@ -497,7 +504,10 @@ export default function DetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(e) => setAnchoDetalle(e.nativeEvent.layout.width)}
+    >
       <StatusBar
         barStyle="light-content"
         backgroundColor={darkColors.background}
