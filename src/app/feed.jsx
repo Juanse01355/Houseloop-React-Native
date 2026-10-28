@@ -51,6 +51,9 @@ const VIDEO_FIT = "contain";
 // (más bajo = más fluida, pero trabaja un poco más)
 const INTERVALO_PROGRESO = 0.1;
 
+// Clave donde se guarda si el usuario dejó el feed con o sin sonido
+const CLAVE_SONIDO = "feedSonido";
+
 // ══════════════════════════════════════════════════════════
 // COMPONENTE: FeedCard
 // Cada card del feed — un video con info de la propiedad
@@ -92,7 +95,8 @@ function FeedCard({
 
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = true;
-    // Arranca silenciado: los navegadores bloquean el autoplay CON sonido
+    // Empieza silenciado hasta que la card se activa; ahí el efecto de
+    // abajo aplica la preferencia de sonido del usuario
     p.muted = true;
     // Cada cuánto avisa el reproductor el tiempo actual (para la barra)
     p.timeUpdateEventInterval = INTERVALO_PROGRESO;
@@ -379,10 +383,36 @@ export default function FeedScreen() {
   const [isFocused, setIsFocused] = useState(true);
 
   // ── Preferencia de sonido del usuario, compartida por todo el feed ──
-  // Arranca en false (silenciado) porque los navegadores no dejan
-  // autoplay con sonido. El usuario la activa con el botón de volumen.
-  const [soundOn, setSoundOn] = useState(false);
+  // Arranca CON sonido. Si el usuario lo silencia, se guarda en el
+  // dispositivo y se respeta la próxima vez que abra el feed.
+  const [soundOn, setSoundOn] = useState(true);
+  // false hasta que se lee la preferencia guardada (evita que suene un
+  // instante antes de aplicar un silencio que el usuario ya había elegido)
+  const [sonidoListo, setSonidoListo] = useState(false);
   const toggleSound = useCallback(() => setSoundOn((s) => !s), []);
+
+  // ── Lee la preferencia guardada al abrir el feed ──
+  useEffect(() => {
+    async function cargarSonido() {
+      try {
+        const guardado = await AsyncStorage.getItem(CLAVE_SONIDO);
+        if (guardado === "off") setSoundOn(false);
+      } catch (error) {
+        console.warn("No se pudo leer la preferencia de sonido:", error);
+      } finally {
+        setSonidoListo(true);
+      }
+    }
+    cargarSonido();
+  }, []);
+
+  // ── Guarda la preferencia cada vez que el usuario la cambia ──
+  useEffect(() => {
+    if (!sonidoListo) return;
+    AsyncStorage.setItem(CLAVE_SONIDO, soundOn ? "on" : "off").catch(() => {
+      // Si no se puede guardar, solo se pierde la preferencia
+    });
+  }, [soundOn, sonidoListo]);
 
   // ── Detecta qué card está visible mientras el usuario hace scroll ──
   const onViewableItemsChanged = useRef(({ viewableItems }) => {
@@ -506,7 +536,7 @@ export default function FeedScreen() {
               propiedad={item}
               width={anchoFeed}
               height={itemHeight}
-              isActive={isFocused && index === activeIndex}
+              isActive={isFocused && sonidoListo && index === activeIndex}
               soundOn={soundOn}
               onToggleSound={toggleSound}
               usuarioId={usuarioId}
