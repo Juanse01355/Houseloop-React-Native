@@ -141,8 +141,10 @@ const avisar = (titulo, mensaje) => {
 // COMPONENTE: VideoHero
 // Video de la propiedad. Muestra la miniatura con el botón play
 // hasta que el usuario lo toca. Se pausa al salir de la pantalla.
+// Mide el 100% del ancho disponible (en web, la columna de 430 px),
+// con la proporción del video y un alto máximo.
 // ══════════════════════════════════════════════════════════
-function VideoHero({ videoUrl, posterUrl, width, height, isFocused }) {
+function VideoHero({ videoUrl, posterUrl, aspecto, altoMaximo, isFocused }) {
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(true);
 
@@ -172,15 +174,16 @@ function VideoHero({ videoUrl, posterUrl, width, height, isFocused }) {
     <Pressable
       onPress={handlePress}
       style={{
-        width,
-        height,
+        width: "100%",
+        aspectRatio: aspecto,
+        maxHeight: altoMaximo,
         backgroundColor: "#000",
         borderRadius: radii.lg,
         overflow: "hidden",
       }}
     >
       <VideoView
-        style={{ width, height }}
+        style={{ width: "100%", height: "100%" }}
         player={player}
         nativeControls={false}
         allowsFullscreen={false}
@@ -226,12 +229,6 @@ export default function DetailScreen() {
   const [error, setError] = useState(false);
   const [usuarioId, setUsuarioId] = useState(null);
   const [isFocused, setIsFocused] = useState(true);
-
-  // Ancho real de la pantalla (medido con onLayout). En web la app vive en
-  // una columna de 430 px, así que el video debe medir ese ancho y no el de
-  // la ventana. Empieza con el ancho de la ventana y se corrige solo cuando
-  // la pantalla se dibuja.
-  const [anchoDetalle, setAnchoDetalle] = useState(0);
 
   // Galería de fotos
   const [galeriaVisible, setGaleriaVisible] = useState(false);
@@ -353,12 +350,11 @@ export default function DetailScreen() {
     .filter(Boolean)
     .join(", ");
 
-  // El video va como tarjeta con márgenes a los lados.
-  // Usa el ancho real de la pantalla (columna de 430 px en web).
-  const mediaWidth = Math.max(anchoDetalle - spacing.md * 2, 0);
+  // El video va como tarjeta con márgenes a los lados: ocupa el 100% del
+  // ancho disponible (la columna de la app) y su alto sale de la proporción
+  // del video, con un tope del 85% de la pantalla.
   const aspecto = aspectoVideo || 0.82; // por defecto, si aún no se conoce
-  // El alto sale de la proporción del video; se limita para que no pase de la pantalla
-  const mediaHeight = Math.min(mediaWidth / aspecto, height * 0.85);
+  const altoMaximo = height * 0.85;
 
   // ── Acciones ──
 
@@ -504,10 +500,7 @@ export default function DetailScreen() {
   };
 
   return (
-    <View
-      style={styles.container}
-      onLayout={(e) => setAnchoDetalle(e.nativeEvent.layout.width)}
-    >
+    <View style={styles.container}>
       <StatusBar
         barStyle="light-content"
         backgroundColor={darkColors.background}
@@ -560,19 +553,23 @@ export default function DetailScreen() {
         {/* ── Video / miniatura ──
             Con video, la portada es SOLO la miniatura del video (si no hay,
             se ve el video tal cual). Así no se superpone una foto cualquiera. */}
-          {anchoDetalle === 0 ? null : propiedad.video ? (
+        {propiedad.video ? (
           <VideoHero
             videoUrl={propiedad.video}
             posterUrl={propiedad.miniatura}
-            width={mediaWidth}
-            height={mediaHeight}
+            aspecto={aspecto}
+            altoMaximo={altoMaximo}
             isFocused={isFocused && !galeriaVisible}
           />
         ) : (
           <View
             style={[
               styles.sinVideo,
-              { width: mediaWidth, height: mediaHeight },
+              {
+                width: "100%",
+                aspectRatio: aspecto,
+                maxHeight: altoMaximo,
+              },
             ]}
           >
             {posterUrl ? (
