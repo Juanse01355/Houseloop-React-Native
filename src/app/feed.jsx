@@ -340,6 +340,12 @@ export default function FeedScreen() {
   // Así cada card ocupa exactamente una pantalla y el paging encaja.
   const [itemHeight, setItemHeight] = useState(0);
 
+  // ── Ancho real del área del feed (medido con onLayout) ──
+  // En web la app vive en una columna de 430 px, así que las cards deben
+  // medir el ancho de esa columna y no el de la ventana. Empieza con el
+  // ancho de la ventana y se corrige solo cuando la pantalla se dibuja.
+  const [anchoFeed, setAnchoFeed] = useState(width);
+
   const [activeFilter, setActiveFilter] = useState("ventas");
   const [propiedades, setPropiedades] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -464,7 +470,10 @@ export default function FeedScreen() {
   return (
     <View
       style={styles.container}
-      onLayout={(e) => setItemHeight(e.nativeEvent.layout.height)}
+      onLayout={(e) => {
+        setItemHeight(e.nativeEvent.layout.height);
+        setAnchoFeed(e.nativeEvent.layout.width);
+      }}
     >
       <StatusBar translucent={false} backgroundColor="#000" />
 
@@ -495,7 +504,7 @@ export default function FeedScreen() {
           renderItem={({ item, index }) => (
             <FeedCard
               propiedad={item}
-              width={width}
+              width={anchoFeed}
               height={itemHeight}
               isActive={isFocused && index === activeIndex}
               soundOn={soundOn}
@@ -552,7 +561,7 @@ export default function FeedScreen() {
         <View style={styles.confettiOverlay} pointerEvents="none">
           <ConfettiCannon
             count={150}
-            origin={{ x: width / 2, y: -20 }}
+            origin={{ x: anchoFeed / 2, y: -20 }}
             fadeOut
             autoStart
             onAnimationEnd={() => setShowConfetti(false)}
