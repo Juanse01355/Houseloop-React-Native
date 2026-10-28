@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Houseloop-React-Native",
+    "name": "HouseLoop",
     "slug": "Houseloop-React-Native",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/favicon_houseloop_cuadro.png",
+    "icon": "./assets/images/favicon-houseloop-cuadro.png",
     "scheme": "houseloopreactnative",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -12,10 +12,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#F36162",
+        "foregroundImage": "./assets/images/favicon-houseloop-cuadro.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.juancho11.HouseloopReactNative"
