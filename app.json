@@ -4,7 +4,7 @@
     "slug": "Houseloop-React-Native",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/favicon_houseloop_cuadro.png",
     "scheme": "houseloopreactnative",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -22,7 +22,7 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon-houseloop.png"
     },
     "plugins": [
       "expo-router",
