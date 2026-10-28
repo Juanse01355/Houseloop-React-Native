@@ -231,7 +231,7 @@ export default function DetailScreen() {
   // una columna de 430 px, así que el video debe medir ese ancho y no el de
   // la ventana. Empieza con el ancho de la ventana y se corrige solo cuando
   // la pantalla se dibuja.
-  const [anchoDetalle, setAnchoDetalle] = useState(width);
+  const [anchoDetalle, setAnchoDetalle] = useState(0);
 
   // Galería de fotos
   const [galeriaVisible, setGaleriaVisible] = useState(false);
@@ -355,7 +355,7 @@ export default function DetailScreen() {
 
   // El video va como tarjeta con márgenes a los lados.
   // Usa el ancho real de la pantalla (columna de 430 px en web).
-  const mediaWidth = anchoDetalle - spacing.md * 2;
+  const mediaWidth = Math.max(anchoDetalle - spacing.md * 2, 0);
   const aspecto = aspectoVideo || 0.82; // por defecto, si aún no se conoce
   // El alto sale de la proporción del video; se limita para que no pase de la pantalla
   const mediaHeight = Math.min(mediaWidth / aspecto, height * 0.85);
@@ -560,7 +560,7 @@ export default function DetailScreen() {
         {/* ── Video / miniatura ──
             Con video, la portada es SOLO la miniatura del video (si no hay,
             se ve el video tal cual). Así no se superpone una foto cualquiera. */}
-        {propiedad.video ? (
+          {anchoDetalle === 0 ? null : propiedad.video ? (
           <VideoHero
             videoUrl={propiedad.video}
             posterUrl={propiedad.miniatura}
