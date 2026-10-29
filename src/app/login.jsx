@@ -30,6 +30,7 @@ import {
 // Íconos
 import IconAlternateEmail from "../../assets/icons/icon-alternate-email.svg";
 import IconLock from "../../assets/icons/icon-lock.svg";
+import IconVisibility from "../../assets/icons/icon-visibility.svg";
 
 // ── Límites de longitud ──
 // Correo: igual que en crear cuenta (60)
@@ -48,6 +49,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false); // controla si mostramos el spinner mientras espera al backend
+  const [showPassword, setShowPassword] = useState(false); // true = la contraseña se ve, false = puntitos
+  const [mostrarOjo, setMostrarOjo] = useState(false);     // true cuando el usuario ya seleccionó el campo de contraseña
 
 // Al abrir la pantalla de login, revisa si hay un correo guardado
 // de una sesión anterior donde el usuario activó "Recordarme"
@@ -142,6 +145,7 @@ useEffect(() => {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Título y subtítulo */}
         <Text style={styles.title}>Iniciar sesión</Text>
@@ -171,14 +175,24 @@ useEffect(() => {
         {/* Input contraseña (solo con tope de largo) */}
         <Input
           label="Contraseña"
-          secureTextEntry
+          secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
+          onFocusExternal={() => setMostrarOjo(true)}
           maxLength={LIMITS.password.max}
           icon={
-            <IconLock width={24} height={24} fill={colors.primaryDisabled} />
+            mostrarOjo ? (
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                <IconVisibility
+                  width={20}
+                  height={20}
+                  fill={showPassword ? colors.primary : colors.primaryDisabled}
+                />
+              </Pressable>
+            ) : (
+              <IconLock width={24} height={24} fill={colors.primaryDisabled} />
+            )
           }
-          iconActive={<IconLock width={20} height={20} fill={colors.primary} />}
         />
 
         {/* Recordarme + Olvidaste contraseña */}
