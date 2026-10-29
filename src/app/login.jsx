@@ -53,6 +53,8 @@ export default function LoginScreen() {
   const [mostrarOjo, setMostrarOjo] = useState(false);     // true mientras el campo de contraseña está seleccionado (ojito), false = candado
   const passwordRef = useRef(null);   // referencia al campo de contraseña, para volver a seleccionarlo después de tocar el ojito
   const tocandoOjo = useRef(false);   // true mientras el dedo está sobre el ojito (evita que el candado vuelva a mitad del toque)
+  const campoEnfocado = useRef(false);   // true mientras el campo de contraseña tiene la selección
+  const temporizadorOjo = useRef(null);  // pequeña espera antes de volver al candado
 
 // Al abrir la pantalla de login, revisa si hay un correo guardado
 // de una sesión anterior donde el usuario activó "Recordarme"
@@ -181,11 +183,19 @@ useEffect(() => {
           secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
-          onFocusExternal={() => setMostrarOjo(true)}
+          onFocusExternal={() => {
+            clearTimeout(temporizadorOjo.current); // cancela cualquier vuelta al candado pendiente
+            campoEnfocado.current = true;
+            setMostrarOjo(true);
+          }}
           onBlurExternal={() => {
-            // Si el campo pierde la selección, vuelve el candado,
-            // salvo que el dedo esté justo sobre el ojito
-            if (!tocandoOjo.current) setMostrarOjo(false);
+            campoEnfocado.current = false;
+            // En la web, al hacer clic en el ojito el campo pierde la selección un instante
+            // ANTES de que llegue el clic. Por eso el candado espera un momento: si en ese
+            // lapso se toca el ojito, onPress devuelve la selección al campo y el ojito se queda.
+            temporizadorOjo.current = setTimeout(() => {
+              if (!campoEnfocado.current && !tocandoOjo.current) setMostrarOjo(false);
+            }, 300);
           }}
           maxLength={LIMITS.password.max}
           icon={
