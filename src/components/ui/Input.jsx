@@ -6,6 +6,8 @@
 //   Props opcionales nuevas (no afectan a login ni signup):
 //     maxLength        máximo de caracteres del campo
 //     contenedorStyle  estilos extra para la caja (ej. quitar el marginBottom)
+//     onBlurExternal   función que se ejecuta cuando el campo pierde la selección
+//     ref              referencia al TextInput, para poder enfocarlo desde afuera
 // ============================================================
 
 import { colors, fontSizes, radii, spacing } from '@/constants/theme-houseloop';
@@ -21,8 +23,10 @@ export default function Input({
   value,
   onChangeText,
   onFocusExternal,
+  onBlurExternal,
   maxLength,
   contenedorStyle,
+  ref,
 }) {
   const [isFocused, setIsFocused] = useState(false);
   const labelAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
@@ -54,6 +58,7 @@ export default function Input({
   const handleBlur = () => {
     setIsFocused(false);
     if (!value) animateLabel(0);
+    if (onBlurExternal) onBlurExternal();
   };
 
   // ── Interpolaciones del label ──
@@ -93,6 +98,7 @@ export default function Input({
 
       {/* Input */}
       <TextInput
+        ref={ref}
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
