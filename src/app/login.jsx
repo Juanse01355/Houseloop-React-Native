@@ -17,7 +17,7 @@ import {
 } from "@/constants/theme-houseloop";
 import AsyncStorage from "@react-native-async-storage/async-storage"; // para guardar el token en el celular
 import { router } from "expo-router";
-import { useEffect, useState } from 'react';   // useEffect: para cargar el correo guardado al abrir la pantalla
+import { useEffect, useRef, useState } from 'react';   // useEffect: para cargar el correo guardado al abrir la pantalla
 import {
   Pressable,
   ScrollView,
@@ -50,7 +50,9 @@ export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false); // controla si mostramos el spinner mientras espera al backend
   const [showPassword, setShowPassword] = useState(false); // true = la contraseña se ve, false = puntitos
-  const [mostrarOjo, setMostrarOjo] = useState(false);     // true cuando el usuario ya seleccionó el campo de contraseña
+  const [mostrarOjo, setMostrarOjo] = useState(false);     // true mientras el campo de contraseña está seleccionado (ojito), false = candado
+  const passwordRef = useRef(null);   // referencia al campo de contraseña, para volver a seleccionarlo después de tocar el ojito
+  const tocandoOjo = useRef(false);   // true mientras el dedo está sobre el ojito (evita que el candado vuelva a mitad del toque)
 
 // Al abrir la pantalla de login, revisa si hay un correo guardado
 // de una sesión anterior donde el usuario activó "Recordarme"
@@ -172,17 +174,30 @@ useEffect(() => {
           }
         />
 
-        {/* Input contraseña (solo con tope de largo) */}
+        {/* Input contraseña: candado en reposo, ojito (ver / ocultar) cuando está seleccionado */}
         <Input
+          ref={passwordRef}
           label="Contraseña"
           secureTextEntry={!showPassword}
           value={password}
           onChangeText={setPassword}
           onFocusExternal={() => setMostrarOjo(true)}
+          onBlurExternal={() => {
+            // Si el campo pierde la selección, vuelve el candado,
+            // salvo que el dedo esté justo sobre el ojito
+            if (!tocandoOjo.current) setMostrarOjo(false);
+          }}
           maxLength={LIMITS.password.max}
           icon={
             mostrarOjo ? (
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <Pressable
+                onPressIn={() => { tocandoOjo.current = true; }}
+                onPressOut={() => { tocandoOjo.current = false; }}
+                onPress={() => {
+                  setShowPassword(!showPassword);
+                  passwordRef.current?.focus(); // devuelve la selección al campo
+                }}
+              >
                 <IconVisibility
                   width={20}
                   height={20}
